@@ -1,0 +1,25 @@
+[package]
+name = "bb-services"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+bb-core = { workspace = true }
+bb-models = { workspace = true }
+bb-api = { workspace = true }
+bb-socket = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+async-trait = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+notify-rust = { workspace = true }
+rusqlite = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+base64 = { workspace = true }
+toml = { workspace = true }

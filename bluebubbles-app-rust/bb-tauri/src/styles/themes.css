@@ -1,0 +1,230 @@
+/* ─── Theme Definitions ─────────────────────────────────────────────────── */
+/* Each theme overrides CSS custom properties defined in globals.css */
+
+/* ─── OLED Dark (Default Dark Theme) ────────────────────────────────────── */
+[data-theme="oled-dark"] {
+  --color-primary: #A5C8FF;
+  --color-on-primary: #003060;
+  --color-primary-container: #004787;
+  --color-on-primary-container: #D4E3FF;
+  --color-secondary: #BDC7DC;
+  --color-on-secondary: #273141;
+  --color-secondary-container: #3D4758;
+  --color-on-secondary-container: #D9E3F8;
+  --color-tertiary: #DDB8E1;
+  --color-on-tertiary: #3F2946;
+  --color-tertiary-container: #564060;
+  --color-on-tertiary-container: #F8D8FE;
+  --color-error: #FFB4AB;
+  --color-on-error: #690005;
+  --color-error-container: #93000A;
+  --color-on-error-container: #FFDAD6;
+  --color-background: #000000;
+  --color-on-background: #E3E2E6;
+  --color-surface: #1A1C1E;
+  --color-on-surface: #E3E2E6;
+  --color-surface-variant: #2C2C2E;
+  --color-on-surface-variant: #C3C6CF;
+  --color-outline: #8D9199;
+  --color-shadow: rgba(0, 0, 0, 0.3);
+  --color-inverse-surface: #E3E2E6;
+  --color-on-inverse-surface: #2F3033;
+  --color-inverse-primary: #1982FC;
+
+  --bubble-imessage-sent: #1982FC;
+  --bubble-imessage-on-sent: #FFFFFF;
+  --bubble-sms-sent: #43CC47;
+  --bubble-sms-on-sent: #FFFFFF;
+  --bubble-received: #323332;
+  --bubble-on-received: #FFFFFF;
+}
+
+/* ─── Bright White (Default Light Theme) ────────────────────────────────── */
+[data-theme="bright-white"] {
+  --color-primary: #1982FC;
+  --color-on-primary: #FFFFFF;
+  --color-primary-container: #D4E3FF;
+  --color-on-primary-container: #001C3A;
+  --color-secondary: #555F71;
+  --color-on-secondary: #FFFFFF;
+  --color-secondary-container: #D9E3F8;
+  --color-on-secondary-container: #121C2B;
+  --color-tertiary: #6E5676;
+  --color-on-tertiary: #FFFFFF;
+  --color-tertiary-container: #F8D8FE;
+  --color-on-tertiary-container: #271430;
+  --color-error: #BA1A1A;
+  --color-on-error: #FFFFFF;
+  --color-error-container: #FFDAD6;
+  --color-on-error-container: #410002;
+  --color-background: #FFFFFF;
+  --color-on-background: #1A1C1E;
+  --color-surface: #FFFFFF;
+  --color-on-surface: #1A1C1E;
+  --color-surface-variant: #F3F3F6;
+  --color-on-surface-variant: #43474E;
+  --color-outline: #74777F;
+  --color-shadow: rgba(0, 0, 0, 0.1);
+  --color-inverse-surface: #2F3033;
+  --color-on-inverse-surface: #F1F0F4;
+  --color-inverse-primary: #A5C8FF;
+
+  --bubble-imessage-sent: #1982FC;
+  --bubble-imessage-on-sent: #FFFFFF;
+  --bubble-sms-sent: #43CC47;
+  --bubble-sms-on-sent: #FFFFFF;
+  --bubble-received: #E9E9E8;
+  --bubble-on-received: #000000;
+}
+
+/* ─── Nord Theme (Dark) ─────────────────────────────────────────────────── */
+[data-theme="nord"] {
+  --color-primary: #88C0D0;
+  --color-on-primary: #2E3440;
+  --color-primary-container: #5E81AC;
+  --color-on-primary-container: #ECEFF4;
+  --color-secondary: #81A1C1;
+  --color-on-secondary: #2E3440;
+  --color-background: #2E3440;
+  --color-on-background: #ECEFF4;
+  --color-surface: #3B4252;
+  --color-on-surface: #ECEFF4;
+  --color-surface-variant: #434C5E;
+  --color-on-surface-variant: #D8DEE9;
+  --color-outline: #7B88A1;
+  --color-error: #BF616A;
+  --color-on-error: #FFFFFF;
+
+  --bubble-imessage-sent: #5E81AC;
+  --bubble-imessage-on-sent: #ECEFF4;
+  --bubble-sms-sent: #A3BE8C;
+  --bubble-sms-on-sent: #2E3440;
+  --bubble-received: #434C5E;
+  --bubble-on-received: #ECEFF4;
+}
+
+/* ─── Blue Theme (Light) ────────────────────────────────────────────────── */
+[data-theme="blue-light"] {
+  --color-primary: #1565C0;
+  --color-on-primary: #FFFFFF;
+  --color-primary-container: #BBDEFB;
+  --color-on-primary-container: #0D3C7A;
+  --color-background: #FAFCFF;
+  --color-on-background: #1A1C1E;
+  --color-surface: #FFFFFF;
+  --color-on-surface: #1A1C1E;
+  --color-surface-variant: #E8EFF8;
+  --color-on-surface-variant: #3C4758;
+
+  --bubble-imessage-sent: #1565C0;
+  --bubble-imessage-on-sent: #FFFFFF;
+  --bubble-sms-sent: #2E7D32;
+  --bubble-sms-on-sent: #FFFFFF;
+  --bubble-received: #E3ECFA;
+  --bubble-on-received: #1A1C1E;
+}
+
+/* ─── Blue Theme (Dark) ─────────────────────────────────────────────────── */
+[data-theme="blue-dark"] {
+  --color-primary: #90CAF9;
+  --color-on-primary: #0D3C7A;
+  --color-primary-container: #1565C0;
+  --color-on-primary-container: #BBDEFB;
+  --color-background: #0A0E14;
+  --color-on-background: #D8E2F0;
+  --color-surface: #151A24;
+  --color-on-surface: #D8E2F0;
+  --color-surface-variant: #1E2636;
+  --color-on-surface-variant: #B0BECE;
+
+  --bubble-imessage-sent: #1565C0;
+  --bubble-imessage-on-sent: #FFFFFF;
+  --bubble-sms-sent: #66BB6A;
+  --bubble-sms-on-sent: #0A3010;
+  --bubble-received: #1E2636;
+  --bubble-on-received: #D8E2F0;
+}
+
+/* ─── Indigo Theme (Dark) ───────────────────────────────────────────────── */
+[data-theme="indigo-dark"] {
+  --color-primary: #9FA8DA;
+  --color-on-primary: #1A237E;
+  --color-primary-container: #3949AB;
+  --color-on-primary-container: #C5CAE9;
+  --color-background: #0A0B14;
+  --color-on-background: #D4D5E8;
+  --color-surface: #14152A;
+  --color-on-surface: #D4D5E8;
+  --color-surface-variant: #1E2040;
+  --color-on-surface-variant: #B0B2CC;
+
+  --bubble-imessage-sent: #3949AB;
+  --bubble-imessage-on-sent: #FFFFFF;
+  --bubble-sms-sent: #66BB6A;
+  --bubble-sms-on-sent: #0A3010;
+  --bubble-received: #1E2040;
+  --bubble-on-received: #D4D5E8;
+}
+
+/* ─── Pink Theme (Light) ────────────────────────────────────────────────── */
+[data-theme="pink-light"] {
+  --color-primary: #D81B60;
+  --color-on-primary: #FFFFFF;
+  --color-primary-container: #FFD9E2;
+  --color-on-primary-container: #3E001D;
+  --color-background: #FFFBFF;
+  --color-on-background: #201A1B;
+  --color-surface: #FFFFFF;
+  --color-on-surface: #201A1B;
+  --color-surface-variant: #F5DEE1;
+  --color-on-surface-variant: #514347;
+
+  --bubble-imessage-sent: #D81B60;
+  --bubble-imessage-on-sent: #FFFFFF;
+  --bubble-sms-sent: #43A047;
+  --bubble-sms-on-sent: #FFFFFF;
+  --bubble-received: #F5DEE1;
+  --bubble-on-received: #201A1B;
+}
+
+/* ─── Green Theme (Dark) ────────────────────────────────────────────────── */
+[data-theme="green-dark"] {
+  --color-primary: #81C784;
+  --color-on-primary: #003910;
+  --color-primary-container: #2E7D32;
+  --color-on-primary-container: #C8E6C9;
+  --color-background: #0A0F0A;
+  --color-on-background: #D0E8D0;
+  --color-surface: #141E14;
+  --color-on-surface: #D0E8D0;
+  --color-surface-variant: #1E2E1E;
+  --color-on-surface-variant: #A8C8A8;
+
+  --bubble-imessage-sent: #2E7D32;
+  --bubble-imessage-on-sent: #FFFFFF;
+  --bubble-sms-sent: #66BB6A;
+  --bubble-sms-on-sent: #0A3010;
+  --bubble-received: #1E2E1E;
+  --bubble-on-received: #D0E8D0;
+}
+
+/* ─── Purple Theme (Dark) ───────────────────────────────────────────────── */
+[data-theme="purple-dark"] {
+  --color-primary: #CE93D8;
+  --color-on-primary: #3A0040;
+  --color-primary-container: #7B1FA2;
+  --color-on-primary-container: #F3E5F5;
+  --color-background: #0F0A12;
+  --color-on-background: #E0D0E8;
+  --color-surface: #1A141E;
+  --color-on-surface: #E0D0E8;
+  --color-surface-variant: #28202E;
+  --color-on-surface-variant: #C0B0CC;
+
+  --bubble-imessage-sent: #7B1FA2;
+  --bubble-imessage-on-sent: #FFFFFF;
+  --bubble-sms-sent: #66BB6A;
+  --bubble-sms-on-sent: #0A3010;
+  --bubble-received: #28202E;
+  --bubble-on-received: #E0D0E8;
+}

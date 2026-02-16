@@ -1,0 +1,47 @@
+[package]
+name = "bb-tauri"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "BlueBubbles desktop application built with Tauri"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# Tauri
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-shell = "2"
+
+# Workspace crates
+bb-core = { path = "../../bb-core" }
+bb-models = { path = "../../bb-models" }
+bb-api = { path = "../../bb-api" }
+bb-socket = { path = "../../bb-socket" }
+bb-services = { path = "../../bb-services" }
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+# Async runtime
+tokio.workspace = true
+
+# Error handling
+thiserror.workspace = true
+anyhow.workspace = true
+
+# Logging
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+# Time
+chrono.workspace = true
+
+# Config
+dirs.workspace = true
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

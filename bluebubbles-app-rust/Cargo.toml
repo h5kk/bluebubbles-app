@@ -1,0 +1,80 @@
+[workspace]
+resolver = "2"
+members = [
+    "bb-core",
+    "bb-models",
+    "bb-api",
+    "bb-socket",
+    "bb-services",
+    "bb-cli",
+    "bb-tauri/src-tauri",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+repository = "https://github.com/BlueBubblesApp/bluebubbles-app"
+
+[workspace.dependencies]
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# Error handling
+thiserror = "1"
+anyhow = "1"
+
+# Database
+rusqlite = { version = "0.31", features = ["bundled", "backup", "blob", "limits", "hooks"] }
+r2d2 = "0.8"
+r2d2_sqlite = "0.24"
+
+# HTTP client
+reqwest = { version = "0.12", features = ["json", "multipart", "stream", "rustls-tls", "cookies"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt"] }
+tracing-appender = "0.2"
+
+# CLI
+clap = { version = "4", features = ["derive"] }
+
+# Crypto
+aes = "0.8"
+cbc = "0.1"
+md-5 = "0.10"
+base64 = "0.22"
+rand = "0.8"
+pkcs7 = "0.4"
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# UUID
+uuid = { version = "1", features = ["v4"] }
+
+# Notifications
+notify-rust = "4"
+
+# Config
+dirs = "5"
+toml = "0.8"
+hostname = "0.4"
+
+# Async traits
+async-trait = "0.1"
+
+# Test utilities
+tempfile = "3"
+
+# Workspace crates
+bb-core = { path = "bb-core" }
+bb-models = { path = "bb-models" }
+bb-api = { path = "bb-api" }
+bb-socket = { path = "bb-socket" }
+bb-services = { path = "bb-services" }

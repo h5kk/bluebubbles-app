@@ -1,0 +1,3506 @@
+{
+  "generated": "2026-02-16T23:14:32.407656+00:00",
+  "summary": {
+    "total": 381,
+    "implemented": 338,
+    "stubbed": 2,
+    "missing": 41,
+    "coverage_pct": 88.7
+  },
+  "crates": {
+    "bb-api": {
+      "files": 15,
+      "lines": 2113,
+      "structs": 21,
+      "functions": 107,
+      "enums": 0,
+      "traits": 0,
+      "tests": 25
+    },
+    "bb-cli": {
+      "files": 17,
+      "lines": 3837,
+      "structs": 0,
+      "functions": 19,
+      "enums": 14,
+      "traits": 0,
+      "tests": 0
+    },
+    "bb-core": {
+      "files": 6,
+      "lines": 1195,
+      "structs": 12,
+      "functions": 24,
+      "enums": 3,
+      "traits": 0,
+      "tests": 12
+    },
+    "bb-models": {
+      "files": 17,
+      "lines": 4948,
+      "structs": 23,
+      "functions": 176,
+      "enums": 1,
+      "traits": 0,
+      "tests": 71
+    },
+    "bb-services": {
+      "files": 29,
+      "lines": 12150,
+      "structs": 34,
+      "functions": 310,
+      "enums": 8,
+      "traits": 1,
+      "tests": 292
+    },
+    "bb-socket": {
+      "files": 4,
+      "lines": 1266,
+      "structs": 11,
+      "functions": 34,
+      "enums": 2,
+      "traits": 0,
+      "tests": 26
+    },
+    "bb-tauri": {
+      "files": 5,
+      "lines": 662,
+      "structs": 4,
+      "functions": 23,
+      "enums": 0,
+      "traits": 0,
+      "tests": 0
+    }
+  },
+  "features": [
+    {
+      "category": "API Endpoints",
+      "subcategory": "Server",
+      "name": "GET /api/v1/ping",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/server.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Server",
+      "name": "GET /api/v1/server/info",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/server.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Server",
+      "name": "POST /api/v1/server/restart/soft",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/server.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Server",
+      "name": "POST /api/v1/server/restart/hard",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/server.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Server",
+      "name": "GET /api/v1/server/update/check",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/server.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Server",
+      "name": "POST /api/v1/server/update/install",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/server.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Server",
+      "name": "GET /api/v1/server/statistics/totals",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/server.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Server",
+      "name": "GET /api/v1/server/statistics/media",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/server.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Server",
+      "name": "GET /api/v1/server/logs",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/server.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Chat",
+      "name": "GET /api/v1/chat/count",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/chat.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Chat",
+      "name": "POST /api/v1/chat/query",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/chat.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Chat",
+      "name": "GET /api/v1/chat/:guid",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/chat.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Chat",
+      "name": "PUT /api/v1/chat/:guid",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/chat.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Chat",
+      "name": "DELETE /api/v1/chat/:guid",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/chat.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Chat",
+      "name": "POST /api/v1/chat/new",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/chat.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Chat",
+      "name": "POST /api/v1/chat/:guid/read",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/chat.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Chat",
+      "name": "POST /api/v1/chat/:guid/unread",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/chat.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Chat",
+      "name": "POST /api/v1/chat/:guid/leave",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/chat.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Chat",
+      "name": "POST /api/v1/chat/:guid/participant/add",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/chat.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Chat",
+      "name": "POST /api/v1/chat/:guid/participant/remove",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/chat.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Chat",
+      "name": "GET /api/v1/chat/:guid/message",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/chat.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Chat",
+      "name": "GET /api/v1/chat/:guid/icon",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/chat.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Chat",
+      "name": "DELETE /api/v1/chat/:guid/:messageGuid",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/chats.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Message",
+      "name": "GET /api/v1/message/count",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/message.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Message",
+      "name": "POST /api/v1/message/query",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/message.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Message",
+      "name": "GET /api/v1/message/:guid",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/message.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Message",
+      "name": "GET /api/v1/message/:guid/embedded-media",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/message.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Message",
+      "name": "POST /api/v1/message/text",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/message.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Message",
+      "name": "POST /api/v1/message/multipart",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/message.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Message",
+      "name": "POST /api/v1/message/react",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/message.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Message",
+      "name": "POST /api/v1/message/:guid/unsend",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/message.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Message",
+      "name": "POST /api/v1/message/:guid/edit",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/message.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Message",
+      "name": "POST /api/v1/message/:guid/notify",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/message.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Message",
+      "name": "GET /api/v1/message/schedule",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/message.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Message",
+      "name": "POST /api/v1/message/schedule",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/message.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Message",
+      "name": "PUT /api/v1/message/schedule/:id",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/message.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Message",
+      "name": "DELETE /api/v1/message/schedule/:id",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/message.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Attachment",
+      "name": "GET /api/v1/attachment/count",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/attachment.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Attachment",
+      "name": "GET /api/v1/attachment/:guid",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/attachment.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Attachment",
+      "name": "GET /api/v1/attachment/:guid/download",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/attachment.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Attachment",
+      "name": "GET /api/v1/attachment/:guid/live",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/attachment.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Attachment",
+      "name": "GET /api/v1/attachment/:guid/blurhash",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/attachment.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Attachment",
+      "name": "POST /api/v1/attachment/upload (multipart)",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/attachment.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Handle",
+      "name": "GET /api/v1/handle/count",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/handle.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Handle",
+      "name": "POST /api/v1/handle/query",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/handle.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Handle",
+      "name": "GET /api/v1/handle/:guid",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/handles.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Handle",
+      "name": "GET /api/v1/handle/:address/focus",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/handle.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Handle",
+      "name": "POST /api/v1/handle/availability/imessage",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/handle.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Handle",
+      "name": "POST /api/v1/handle/availability/facetime",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/handle.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Contact",
+      "name": "GET /api/v1/contact",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/contact.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Contact",
+      "name": "POST /api/v1/contact/query",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/contact.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Contact",
+      "name": "POST /api/v1/contact/upload",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/contact.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "FCM",
+      "name": "POST /api/v1/fcm/device",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/fcm.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "FCM",
+      "name": "GET /api/v1/fcm/client",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/fcm.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Mac",
+      "name": "POST /api/v1/mac/lock",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/mac.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Mac",
+      "name": "POST /api/v1/mac/imessage/restart",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/mac.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Backup",
+      "name": "GET /api/v1/backup/theme",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/backup.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Backup",
+      "name": "POST /api/v1/backup/theme",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/backup.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Backup",
+      "name": "DELETE /api/v1/backup/theme",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/backup.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Backup",
+      "name": "GET /api/v1/backup/settings",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/backup.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Backup",
+      "name": "POST /api/v1/backup/settings",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/backup.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "Backup",
+      "name": "DELETE /api/v1/backup/settings",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/backup.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "FaceTime",
+      "name": "POST /api/v1/facetime/answer",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/facetime.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "FaceTime",
+      "name": "POST /api/v1/facetime/leave",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/facetime.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "iCloud",
+      "name": "GET /api/v1/icloud/findmy/devices",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/icloud.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "iCloud",
+      "name": "POST /api/v1/icloud/findmy/devices/refresh",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/icloud.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "iCloud",
+      "name": "GET /api/v1/icloud/findmy/friends",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/icloud.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "iCloud",
+      "name": "POST /api/v1/icloud/findmy/friends/refresh",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/icloud.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "iCloud",
+      "name": "GET /api/v1/icloud/account",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/icloud.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "iCloud",
+      "name": "GET /api/v1/icloud/contact",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/icloud.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "API Endpoints",
+      "subcategory": "iCloud",
+      "name": "POST /api/v1/icloud/account/alias",
+      "status": "implemented",
+      "rust_file": "bb-api/src/endpoints/icloud.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "Socket Events",
+      "subcategory": "Events",
+      "name": "new-message",
+      "status": "implemented",
+      "rust_file": "bb-socket/src/events.rs",
+      "rust_symbol": "SocketEventType::NewMessage",
+      "notes": ""
+    },
+    {
+      "category": "Socket Events",
+      "subcategory": "Events",
+      "name": "updated-message",
+      "status": "implemented",
+      "rust_file": "bb-socket/src/events.rs",
+      "rust_symbol": "SocketEventType::UpdatedMessage",
+      "notes": ""
+    },
+    {
+      "category": "Socket Events",
+      "subcategory": "Events",
+      "name": "typing-indicator",
+      "status": "implemented",
+      "rust_file": "bb-socket/src/events.rs",
+      "rust_symbol": "SocketEventType::TypingIndicator",
+      "notes": ""
+    },
+    {
+      "category": "Socket Events",
+      "subcategory": "Events",
+      "name": "chat-read-status-changed",
+      "status": "implemented",
+      "rust_file": "bb-socket/src/events.rs",
+      "rust_symbol": "SocketEventType::ChatReadStatusChanged",
+      "notes": ""
+    },
+    {
+      "category": "Socket Events",
+      "subcategory": "Events",
+      "name": "group-name-change",
+      "status": "implemented",
+      "rust_file": "bb-socket/src/events.rs",
+      "rust_symbol": "SocketEventType::ChatUpdate",
+      "notes": ""
+    },
+    {
+      "category": "Socket Events",
+      "subcategory": "Events",
+      "name": "participant-removed",
+      "status": "implemented",
+      "rust_file": "bb-socket/src/events.rs",
+      "rust_symbol": "SocketEventType::ParticipantRemoved",
+      "notes": ""
+    },
+    {
+      "category": "Socket Events",
+      "subcategory": "Events",
+      "name": "participant-added",
+      "status": "implemented",
+      "rust_file": "bb-socket/src/events.rs",
+      "rust_symbol": "SocketEventType::ParticipantAdded",
+      "notes": ""
+    },
+    {
+      "category": "Socket Events",
+      "subcategory": "Events",
+      "name": "participant-left",
+      "status": "implemented",
+      "rust_file": "bb-socket/src/events.rs",
+      "rust_symbol": "SocketEventType::ParticipantLeft",
+      "notes": ""
+    },
+    {
+      "category": "Socket Events",
+      "subcategory": "Events",
+      "name": "group-icon-changed",
+      "status": "implemented",
+      "rust_file": "bb-socket/src/events.rs",
+      "rust_symbol": "SocketEventType::GroupIconChanged",
+      "notes": ""
+    },
+    {
+      "category": "Socket Events",
+      "subcategory": "Events",
+      "name": "incoming-facetime",
+      "status": "implemented",
+      "rust_file": "bb-socket/src/events.rs",
+      "rust_symbol": "SocketEventType::IncomingFaceTime",
+      "notes": ""
+    },
+    {
+      "category": "Socket Events",
+      "subcategory": "Events",
+      "name": "ft-call-status-changed",
+      "status": "implemented",
+      "rust_file": "bb-socket/src/events.rs",
+      "rust_symbol": "SocketEventType::FtCallStatusChanged",
+      "notes": ""
+    },
+    {
+      "category": "Socket Events",
+      "subcategory": "Events",
+      "name": "imessage-aliases-removed",
+      "status": "implemented",
+      "rust_file": "bb-socket/src/events.rs",
+      "rust_symbol": "SocketEventType::IMessageAliasRemoved",
+      "notes": ""
+    },
+    {
+      "category": "Socket Events",
+      "subcategory": "Events",
+      "name": "server-update",
+      "status": "implemented",
+      "rust_file": "bb-socket/src/events.rs",
+      "rust_symbol": "SocketEventType::ServerUpdate",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Chat",
+      "name": "Chat.id",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/chat.rs",
+      "rust_symbol": "Chat::id",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Chat",
+      "name": "Chat.guid",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/chat.rs",
+      "rust_symbol": "Chat::guid",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Chat",
+      "name": "Chat.chat_identifier",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/chat.rs",
+      "rust_symbol": "Chat::chat_identifier",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Chat",
+      "name": "Chat.display_name",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/chat.rs",
+      "rust_symbol": "Chat::display_name",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Chat",
+      "name": "Chat.is_archived",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/chat.rs",
+      "rust_symbol": "Chat::is_archived",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Chat",
+      "name": "Chat.mute_type",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/chat.rs",
+      "rust_symbol": "Chat::mute_type",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Chat",
+      "name": "Chat.is_pinned",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/chat.rs",
+      "rust_symbol": "Chat::is_pinned",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Chat",
+      "name": "Chat.has_unread_message",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/chat.rs",
+      "rust_symbol": "Chat::has_unread_message",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Chat",
+      "name": "Chat.style",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/chat.rs",
+      "rust_symbol": "Chat::style",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Chat",
+      "name": "Chat.latest_message_date",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/chat.rs",
+      "rust_symbol": "Chat::latest_message_date",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Chat",
+      "name": "Chat.participants",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/chat.rs",
+      "rust_symbol": "Chat::participants",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Chat",
+      "name": "Chat.from_server_map",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/chat.rs",
+      "rust_symbol": "Chat::from_server_map",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Chat",
+      "name": "Chat.save",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/chat.rs",
+      "rust_symbol": "Chat::save",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Message",
+      "name": "Message.id",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/message.rs",
+      "rust_symbol": "Message::id",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Message",
+      "name": "Message.guid",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/message.rs",
+      "rust_symbol": "Message::guid",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Message",
+      "name": "Message.chat_id",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/message.rs",
+      "rust_symbol": "Message::chat_id",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Message",
+      "name": "Message.handle_id",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/message.rs",
+      "rust_symbol": "Message::handle_id",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Message",
+      "name": "Message.text",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/message.rs",
+      "rust_symbol": "Message::text",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Message",
+      "name": "Message.subject",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/message.rs",
+      "rust_symbol": "Message::subject",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Message",
+      "name": "Message.error",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/message.rs",
+      "rust_symbol": "Message::error",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Message",
+      "name": "Message.date_created",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/message.rs",
+      "rust_symbol": "Message::date_created",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Message",
+      "name": "Message.is_from_me",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/message.rs",
+      "rust_symbol": "Message::is_from_me",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Message",
+      "name": "Message.item_type",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/message.rs",
+      "rust_symbol": "Message::item_type",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Message",
+      "name": "Message.associated_message_guid",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/message.rs",
+      "rust_symbol": "Message::associated_message_guid",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Message",
+      "name": "Message.has_attachments",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/message.rs",
+      "rust_symbol": "Message::has_attachments",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Message",
+      "name": "Message.attributed_body",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/message.rs",
+      "rust_symbol": "Message::attributed_body",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Message",
+      "name": "Message.payload_data",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/message.rs",
+      "rust_symbol": "Message::payload_data",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Message",
+      "name": "Message.from_server_map",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/message.rs",
+      "rust_symbol": "Message::from_server_map",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Message",
+      "name": "Message.save",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/message.rs",
+      "rust_symbol": "Message::save",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Handle",
+      "name": "Handle.id",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/handle.rs",
+      "rust_symbol": "Handle::id",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Handle",
+      "name": "Handle.address",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/handle.rs",
+      "rust_symbol": "Handle::address",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Handle",
+      "name": "Handle.service",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/handle.rs",
+      "rust_symbol": "Handle::service",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Handle",
+      "name": "Handle.formatted_address",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/handle.rs",
+      "rust_symbol": "Handle::formatted_address",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Handle",
+      "name": "Handle.contact",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/handle.rs",
+      "rust_symbol": "Handle::contact",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Handle",
+      "name": "Handle.from_server_map",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/handle.rs",
+      "rust_symbol": "Handle::from_server_map",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Handle",
+      "name": "Handle.save",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/handle.rs",
+      "rust_symbol": "Handle::save",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Handle",
+      "name": "Handle.display_name",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/handle.rs",
+      "rust_symbol": "Handle::display_name",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Attachment",
+      "name": "Attachment.id",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/attachment.rs",
+      "rust_symbol": "Attachment::id",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Attachment",
+      "name": "Attachment.guid",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/attachment.rs",
+      "rust_symbol": "Attachment::guid",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Attachment",
+      "name": "Attachment.mime_type",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/attachment.rs",
+      "rust_symbol": "Attachment::mime_type",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Attachment",
+      "name": "Attachment.transfer_name",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/attachment.rs",
+      "rust_symbol": "Attachment::transfer_name",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Attachment",
+      "name": "Attachment.total_bytes",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/attachment.rs",
+      "rust_symbol": "Attachment::total_bytes",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Attachment",
+      "name": "Attachment.height",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/attachment.rs",
+      "rust_symbol": "Attachment::height",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Attachment",
+      "name": "Attachment.width",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/attachment.rs",
+      "rust_symbol": "Attachment::width",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Attachment",
+      "name": "Attachment.has_live_photo",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/attachment.rs",
+      "rust_symbol": "Attachment::has_live_photo",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Attachment",
+      "name": "Attachment.from_server_map",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/attachment.rs",
+      "rust_symbol": "Attachment::from_server_map",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Attachment",
+      "name": "Attachment.save",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/attachment.rs",
+      "rust_symbol": "Attachment::save",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Attachment",
+      "name": "Attachment.is_image",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/attachment.rs",
+      "rust_symbol": "Attachment::is_image",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Attachment",
+      "name": "Attachment.is_video",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/attachment.rs",
+      "rust_symbol": "Attachment::is_video",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Attachment",
+      "name": "Attachment.is_audio",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/attachment.rs",
+      "rust_symbol": "Attachment::is_audio",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Contact",
+      "name": "Contact.id",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/contact.rs",
+      "rust_symbol": "Contact::id",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Contact",
+      "name": "Contact.external_id",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/contact.rs",
+      "rust_symbol": "Contact::external_id",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Contact",
+      "name": "Contact.display_name",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/contact.rs",
+      "rust_symbol": "Contact::display_name",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Contact",
+      "name": "Contact.phones",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/contact.rs",
+      "rust_symbol": "Contact::phones",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Contact",
+      "name": "Contact.emails",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/contact.rs",
+      "rust_symbol": "Contact::emails",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Contact",
+      "name": "Contact.avatar",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/contact.rs",
+      "rust_symbol": "Contact::avatar",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Contact",
+      "name": "Contact.structured_name",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/contact.rs",
+      "rust_symbol": "Contact::structured_name",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Contact",
+      "name": "Contact.from_server_map",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/contact.rs",
+      "rust_symbol": "Contact::from_server_map",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Contact",
+      "name": "Contact.save",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/contact.rs",
+      "rust_symbol": "Contact::save",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "Contact",
+      "name": "Contact.matches_address",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/contact.rs",
+      "rust_symbol": "Contact::matches_address",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "FcmData",
+      "name": "FcmData.project_id",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/fcm_data.rs",
+      "rust_symbol": "FcmData::project_id",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "FcmData",
+      "name": "FcmData.storage_bucket",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/fcm_data.rs",
+      "rust_symbol": "FcmData::storage_bucket",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "FcmData",
+      "name": "FcmData.api_key",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/fcm_data.rs",
+      "rust_symbol": "FcmData::api_key",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "FcmData",
+      "name": "FcmData.firebase_url",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/fcm_data.rs",
+      "rust_symbol": "FcmData::firebase_url",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "FcmData",
+      "name": "FcmData.client_id",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/fcm_data.rs",
+      "rust_symbol": "FcmData::client_id",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "FcmData",
+      "name": "FcmData.application_id",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/fcm_data.rs",
+      "rust_symbol": "FcmData::application_id",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "FcmData",
+      "name": "FcmData.from_server_map",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/fcm_data.rs",
+      "rust_symbol": "FcmData::from_server_map",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "FcmData",
+      "name": "FcmData.save",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/fcm_data.rs",
+      "rust_symbol": "FcmData::save",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "FcmData",
+      "name": "FcmData.load",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/fcm_data.rs",
+      "rust_symbol": "FcmData::load",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "ThemeStruct",
+      "name": "ThemeStruct.id",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/theme.rs",
+      "rust_symbol": "ThemeStruct::id",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "ThemeStruct",
+      "name": "ThemeStruct.name",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/theme.rs",
+      "rust_symbol": "ThemeStruct::name",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "ThemeStruct",
+      "name": "ThemeStruct.gradient_bg",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/theme.rs",
+      "rust_symbol": "ThemeStruct::gradient_bg",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "ThemeStruct",
+      "name": "ThemeStruct.google_font",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/theme.rs",
+      "rust_symbol": "ThemeStruct::google_font",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "ThemeStruct",
+      "name": "ThemeStruct.theme_data",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/theme.rs",
+      "rust_symbol": "ThemeStruct::theme_data",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "ThemeStruct",
+      "name": "ThemeStruct.parsed_data",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/theme.rs",
+      "rust_symbol": "ThemeStruct::parsed_data",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "ThemeStruct",
+      "name": "ThemeStruct.is_dark",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/theme.rs",
+      "rust_symbol": "ThemeStruct::is_dark",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "ThemeStruct",
+      "name": "ThemeStruct.save",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/theme.rs",
+      "rust_symbol": "ThemeStruct::save",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "ThemeStruct",
+      "name": "ThemeStruct.load_all",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/theme.rs",
+      "rust_symbol": "ThemeStruct::load_all",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "ThemeStruct",
+      "name": "ThemeStruct.delete_by_name",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/theme.rs",
+      "rust_symbol": "ThemeStruct::delete_by_name",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "ScheduledMessage",
+      "name": "ScheduledMessage.id",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/scheduled_message.rs",
+      "rust_symbol": "ScheduledMessage::id",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "ScheduledMessage",
+      "name": "ScheduledMessage.type",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/scheduled_message.rs",
+      "rust_symbol": "ScheduledMessage::type",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "ScheduledMessage",
+      "name": "ScheduledMessage.chat_guid",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/scheduled_message.rs",
+      "rust_symbol": "ScheduledMessage::chat_guid",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "ScheduledMessage",
+      "name": "ScheduledMessage.message",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/scheduled_message.rs",
+      "rust_symbol": "ScheduledMessage::message",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "ScheduledMessage",
+      "name": "ScheduledMessage.scheduled_for",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/scheduled_message.rs",
+      "rust_symbol": "ScheduledMessage::scheduled_for",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "ScheduledMessage",
+      "name": "ScheduledMessage.status",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/scheduled_message.rs",
+      "rust_symbol": "ScheduledMessage::status",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "ScheduledMessage",
+      "name": "ScheduledMessage.from_server_map",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/scheduled_message.rs",
+      "rust_symbol": "ScheduledMessage::from_server_map",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "ScheduledMessage",
+      "name": "ScheduledMessage.save",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/scheduled_message.rs",
+      "rust_symbol": "ScheduledMessage::save",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "ScheduledMessage",
+      "name": "ScheduledMessage.load_all",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/scheduled_message.rs",
+      "rust_symbol": "ScheduledMessage::load_all",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "ScheduledMessage",
+      "name": "ScheduledMessage.delete",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/scheduled_message.rs",
+      "rust_symbol": "ScheduledMessage::delete",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "AttributedBody",
+      "name": "AttributedBody.runs",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/attributed_body.rs",
+      "rust_symbol": "AttributedBody::runs",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "AttributedBody",
+      "name": "AttributedBody.plain_text",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/attributed_body.rs",
+      "rust_symbol": "AttributedBody::plain_text",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "AttributedBody",
+      "name": "AttributedBody.mentions",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/attributed_body.rs",
+      "rust_symbol": "AttributedBody::mentions",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "AttributedBody",
+      "name": "AttributedBody.links",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/attributed_body.rs",
+      "rust_symbol": "AttributedBody::links",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "AttributedBody",
+      "name": "AttributedBody.from_server_json",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/attributed_body.rs",
+      "rust_symbol": "AttributedBody::from_server_json",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "PayloadData",
+      "name": "PayloadData.url_preview",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/payload_data.rs",
+      "rust_symbol": "PayloadData::url_preview",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "PayloadData",
+      "name": "PayloadData.app_data",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/payload_data.rs",
+      "rust_symbol": "PayloadData::app_data",
+      "notes": ""
+    },
+    {
+      "category": "DB Models",
+      "subcategory": "PayloadData",
+      "name": "PayloadData.from_server_json",
+      "status": "implemented",
+      "rust_file": "bb-models/src/models/payload_data.rs",
+      "rust_symbol": "PayloadData::from_server_json",
+      "notes": ""
+    },
+    {
+      "category": "DB Infrastructure",
+      "subcategory": "Core",
+      "name": "Connection pooling (r2d2)",
+      "status": "implemented",
+      "rust_file": "bb-models/src/db.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "DB Infrastructure",
+      "subcategory": "Core",
+      "name": "WAL mode",
+      "status": "implemented",
+      "rust_file": "bb-models/src/db.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "DB Infrastructure",
+      "subcategory": "Core",
+      "name": "Integrity check",
+      "status": "implemented",
+      "rust_file": "bb-models/src/db.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "DB Infrastructure",
+      "subcategory": "Core",
+      "name": "Schema creation",
+      "status": "implemented",
+      "rust_file": "bb-models/src/db.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "DB Infrastructure",
+      "subcategory": "Core",
+      "name": "Versioned migrations",
+      "status": "implemented",
+      "rust_file": "bb-models/src/db.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "DB Infrastructure",
+      "subcategory": "Core",
+      "name": "Transaction support",
+      "status": "implemented",
+      "rust_file": "bb-models/src/db.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "DB Infrastructure",
+      "subcategory": "Core",
+      "name": "Database reset",
+      "status": "implemented",
+      "rust_file": "bb-models/src/db.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "DB Infrastructure",
+      "subcategory": "Core",
+      "name": "Database stats",
+      "status": "implemented",
+      "rust_file": "bb-models/src/db.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "DB Infrastructure",
+      "subcategory": "Core",
+      "name": "Settings key-value store",
+      "status": "implemented",
+      "rust_file": "bb-models/src/db.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "DB Infrastructure",
+      "subcategory": "Core",
+      "name": "Chat-Handle join table",
+      "status": "implemented",
+      "rust_file": "bb-models/src/db.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "ChatService",
+      "name": "ChatService.list_chats",
+      "status": "implemented",
+      "rust_file": "bb-services/src/chat.rs",
+      "rust_symbol": "ChatService::list_chats",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "ChatService",
+      "name": "ChatService.find_chat",
+      "status": "implemented",
+      "rust_file": "bb-services/src/chat.rs",
+      "rust_symbol": "ChatService::find_chat",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "ChatService",
+      "name": "ChatService.search_chats",
+      "status": "implemented",
+      "rust_file": "bb-services/src/chat.rs",
+      "rust_symbol": "ChatService::search_chats",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "ChatService",
+      "name": "ChatService.mark_read",
+      "status": "implemented",
+      "rust_file": "bb-services/src/chat.rs",
+      "rust_symbol": "ChatService::mark_read",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "ChatService",
+      "name": "ChatService.mark_unread",
+      "status": "implemented",
+      "rust_file": "bb-services/src/chat.rs",
+      "rust_symbol": "ChatService::mark_unread",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "ChatService",
+      "name": "ChatService.create_chat",
+      "status": "implemented",
+      "rust_file": "bb-services/src/chat.rs",
+      "rust_symbol": "ChatService::create_chat",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "ChatService",
+      "name": "ChatService.rename_chat",
+      "status": "implemented",
+      "rust_file": "bb-services/src/chat.rs",
+      "rust_symbol": "ChatService::rename_chat",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "ChatService",
+      "name": "ChatService.count",
+      "status": "implemented",
+      "rust_file": "bb-services/src/chat.rs",
+      "rust_symbol": "ChatService::count",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "ChatService",
+      "name": "ChatService.toggle_pin",
+      "status": "implemented",
+      "rust_file": "bb-services/src/chat.rs",
+      "rust_symbol": "ChatService::toggle_pin",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "ChatService",
+      "name": "ChatService.toggle_archive",
+      "status": "implemented",
+      "rust_file": "bb-services/src/chat.rs",
+      "rust_symbol": "ChatService::toggle_archive",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "MessageService",
+      "name": "MessageService.list_messages",
+      "status": "implemented",
+      "rust_file": "bb-services/src/message.rs",
+      "rust_symbol": "MessageService::list_messages",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "MessageService",
+      "name": "MessageService.find_message",
+      "status": "implemented",
+      "rust_file": "bb-services/src/message.rs",
+      "rust_symbol": "MessageService::find_message",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "MessageService",
+      "name": "MessageService.search_messages",
+      "status": "implemented",
+      "rust_file": "bb-services/src/message.rs",
+      "rust_symbol": "MessageService::search_messages",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "MessageService",
+      "name": "MessageService.send_text",
+      "status": "implemented",
+      "rust_file": "bb-services/src/message.rs",
+      "rust_symbol": "MessageService::send_text",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "MessageService",
+      "name": "MessageService.send_reaction",
+      "status": "implemented",
+      "rust_file": "bb-services/src/message.rs",
+      "rust_symbol": "MessageService::send_reaction",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "MessageService",
+      "name": "MessageService.edit_message",
+      "status": "implemented",
+      "rust_file": "bb-services/src/message.rs",
+      "rust_symbol": "MessageService::edit_message",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "MessageService",
+      "name": "MessageService.unsend_message",
+      "status": "implemented",
+      "rust_file": "bb-services/src/message.rs",
+      "rust_symbol": "MessageService::unsend_message",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "MessageService",
+      "name": "MessageService.handle_incoming_message",
+      "status": "implemented",
+      "rust_file": "bb-services/src/message.rs",
+      "rust_symbol": "MessageService::handle_incoming_message",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "MessageService",
+      "name": "MessageService.count_for_chat",
+      "status": "implemented",
+      "rust_file": "bb-services/src/message.rs",
+      "rust_symbol": "MessageService::count_for_chat",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "ContactService",
+      "name": "ContactService.list_contacts",
+      "status": "implemented",
+      "rust_file": "bb-services/src/contact.rs",
+      "rust_symbol": "ContactService::list_contacts",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "ContactService",
+      "name": "ContactService.search_contacts",
+      "status": "implemented",
+      "rust_file": "bb-services/src/contact.rs",
+      "rust_symbol": "ContactService::search_contacts",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "ContactService",
+      "name": "ContactService.find_contact",
+      "status": "implemented",
+      "rust_file": "bb-services/src/contact.rs",
+      "rust_symbol": "ContactService::find_contact",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "ContactService",
+      "name": "ContactService.sync_contacts",
+      "status": "implemented",
+      "rust_file": "bb-services/src/contact.rs",
+      "rust_symbol": "ContactService::sync_contacts",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "ContactService",
+      "name": "ContactService.resolve_display_name",
+      "status": "implemented",
+      "rust_file": "bb-services/src/contact.rs",
+      "rust_symbol": "ContactService::resolve_display_name",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "AttachmentService",
+      "name": "AttachmentService.download",
+      "status": "implemented",
+      "rust_file": "bb-services/src/attachment.rs",
+      "rust_symbol": "AttachmentService::download",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "AttachmentService",
+      "name": "AttachmentService.upload_and_send",
+      "status": "implemented",
+      "rust_file": "bb-services/src/attachment.rs",
+      "rust_symbol": "AttachmentService::upload_and_send",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "AttachmentService",
+      "name": "AttachmentService.attachments_for_message",
+      "status": "implemented",
+      "rust_file": "bb-services/src/attachment.rs",
+      "rust_symbol": "AttachmentService::attachments_for_message",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "AttachmentService",
+      "name": "AttachmentService.cleanup_cache",
+      "status": "implemented",
+      "rust_file": "bb-services/src/attachment.rs",
+      "rust_symbol": "AttachmentService::cleanup_cache",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "AttachmentService",
+      "name": "AttachmentService.cache_path",
+      "status": "implemented",
+      "rust_file": "bb-services/src/attachment.rs",
+      "rust_symbol": "AttachmentService::cache_path",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "AttachmentService",
+      "name": "AttachmentService.is_cached",
+      "status": "implemented",
+      "rust_file": "bb-services/src/attachment.rs",
+      "rust_symbol": "AttachmentService::is_cached",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "SyncService",
+      "name": "SyncService.full_sync",
+      "status": "implemented",
+      "rust_file": "bb-services/src/sync.rs",
+      "rust_symbol": "SyncService::full_sync",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "SyncService",
+      "name": "SyncService.incremental_sync",
+      "status": "implemented",
+      "rust_file": "bb-services/src/sync.rs",
+      "rust_symbol": "SyncService::incremental_sync",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "SettingsService",
+      "name": "SettingsService.server_address",
+      "status": "implemented",
+      "rust_file": "bb-services/src/settings.rs",
+      "rust_symbol": "SettingsService::server_address",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "SettingsService",
+      "name": "SettingsService.set_server_address",
+      "status": "implemented",
+      "rust_file": "bb-services/src/settings.rs",
+      "rust_symbol": "SettingsService::set_server_address",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "SettingsService",
+      "name": "SettingsService.guid_auth_key",
+      "status": "implemented",
+      "rust_file": "bb-services/src/settings.rs",
+      "rust_symbol": "SettingsService::guid_auth_key",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "SettingsService",
+      "name": "SettingsService.set_guid_auth_key",
+      "status": "implemented",
+      "rust_file": "bb-services/src/settings.rs",
+      "rust_symbol": "SettingsService::set_guid_auth_key",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "SettingsService",
+      "name": "SettingsService.is_setup_complete",
+      "status": "implemented",
+      "rust_file": "bb-services/src/settings.rs",
+      "rust_symbol": "SettingsService::is_setup_complete",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "SettingsService",
+      "name": "SettingsService.mark_setup_complete",
+      "status": "implemented",
+      "rust_file": "bb-services/src/settings.rs",
+      "rust_symbol": "SettingsService::mark_setup_complete",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "SettingsService",
+      "name": "SettingsService.save",
+      "status": "implemented",
+      "rust_file": "bb-services/src/settings.rs",
+      "rust_symbol": "SettingsService::save",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "NotificationService",
+      "name": "NotificationService.notify_message",
+      "status": "implemented",
+      "rust_file": "bb-services/src/notification.rs",
+      "rust_symbol": "NotificationService::notify_message",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "NotificationService",
+      "name": "NotificationService.notify_reaction",
+      "status": "implemented",
+      "rust_file": "bb-services/src/notification.rs",
+      "rust_symbol": "NotificationService::notify_reaction",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "NotificationService",
+      "name": "NotificationService.notify",
+      "status": "implemented",
+      "rust_file": "bb-services/src/notification.rs",
+      "rust_symbol": "NotificationService::notify",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "NotificationService",
+      "name": "NotificationService.set_enabled",
+      "status": "implemented",
+      "rust_file": "bb-services/src/notification.rs",
+      "rust_symbol": "NotificationService::set_enabled",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "QueueService",
+      "name": "QueueService.enqueue",
+      "status": "implemented",
+      "rust_file": "bb-services/src/queue.rs",
+      "rust_symbol": "QueueService::enqueue",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "QueueService",
+      "name": "QueueService.dequeue",
+      "status": "implemented",
+      "rust_file": "bb-services/src/queue.rs",
+      "rust_symbol": "QueueService::dequeue",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "QueueService",
+      "name": "QueueService.len",
+      "status": "implemented",
+      "rust_file": "bb-services/src/queue.rs",
+      "rust_symbol": "QueueService::len",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "QueueService",
+      "name": "QueueService.is_empty",
+      "status": "implemented",
+      "rust_file": "bb-services/src/queue.rs",
+      "rust_symbol": "QueueService::is_empty",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "QueueService",
+      "name": "QueueService.remove",
+      "status": "implemented",
+      "rust_file": "bb-services/src/queue.rs",
+      "rust_symbol": "QueueService::remove",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "QueueService",
+      "name": "QueueService.clear",
+      "status": "implemented",
+      "rust_file": "bb-services/src/queue.rs",
+      "rust_symbol": "QueueService::clear",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "ServiceRegistry",
+      "name": "ServiceRegistry.register",
+      "status": "implemented",
+      "rust_file": "bb-services/src/registry.rs",
+      "rust_symbol": "ServiceRegistry::register",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "ServiceRegistry",
+      "name": "ServiceRegistry.init_all",
+      "status": "implemented",
+      "rust_file": "bb-services/src/registry.rs",
+      "rust_symbol": "ServiceRegistry::init_all",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "ServiceRegistry",
+      "name": "ServiceRegistry.shutdown_all",
+      "status": "implemented",
+      "rust_file": "bb-services/src/registry.rs",
+      "rust_symbol": "ServiceRegistry::shutdown_all",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "ServiceRegistry",
+      "name": "ServiceRegistry.set_api_client",
+      "status": "implemented",
+      "rust_file": "bb-services/src/registry.rs",
+      "rust_symbol": "ServiceRegistry::set_api_client",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "ServiceRegistry",
+      "name": "ServiceRegistry.api_client",
+      "status": "implemented",
+      "rust_file": "bb-services/src/registry.rs",
+      "rust_symbol": "ServiceRegistry::api_client",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "ServiceRegistry",
+      "name": "ServiceRegistry.health_check",
+      "status": "implemented",
+      "rust_file": "bb-services/src/registry.rs",
+      "rust_symbol": "ServiceRegistry::health_check",
+      "notes": ""
+    },
+    {
+      "category": "Services",
+      "subcategory": "Flutter-only",
+      "name": "LifecycleService",
+      "status": "missing",
+      "rust_file": "",
+      "rust_symbol": "",
+      "notes": "Flutter-specific service, not ported"
+    },
+    {
+      "category": "Services",
+      "subcategory": "Flutter-only",
+      "name": "ActionHandler",
+      "status": "missing",
+      "rust_file": "",
+      "rust_symbol": "",
+      "notes": "Flutter-specific service, not ported"
+    },
+    {
+      "category": "Services",
+      "subcategory": "Flutter-only",
+      "name": "BackgroundIsolateService",
+      "status": "missing",
+      "rust_file": "",
+      "rust_symbol": "",
+      "notes": "Flutter-specific service, not ported"
+    },
+    {
+      "category": "Services",
+      "subcategory": "Flutter-only",
+      "name": "NotificationListenerService",
+      "status": "missing",
+      "rust_file": "",
+      "rust_symbol": "",
+      "notes": "Flutter-specific service, not ported"
+    },
+    {
+      "category": "Services",
+      "subcategory": "Flutter-only",
+      "name": "FCMService",
+      "status": "missing",
+      "rust_file": "",
+      "rust_symbol": "",
+      "notes": "Flutter-specific service, not ported"
+    },
+    {
+      "category": "Services",
+      "subcategory": "Flutter-only",
+      "name": "UnifiedPushService",
+      "status": "missing",
+      "rust_file": "",
+      "rust_symbol": "",
+      "notes": "Flutter-specific service, not ported"
+    },
+    {
+      "category": "Services",
+      "subcategory": "Flutter-only",
+      "name": "NetworkService",
+      "status": "missing",
+      "rust_file": "",
+      "rust_symbol": "",
+      "notes": "Flutter-specific service, not ported"
+    },
+    {
+      "category": "Services",
+      "subcategory": "Flutter-only",
+      "name": "ThemeService",
+      "status": "missing",
+      "rust_file": "",
+      "rust_symbol": "",
+      "notes": "Flutter-specific service, not ported"
+    },
+    {
+      "category": "Services",
+      "subcategory": "Flutter-only",
+      "name": "FindMyService",
+      "status": "missing",
+      "rust_file": "",
+      "rust_symbol": "",
+      "notes": "Flutter-specific service, not ported"
+    },
+    {
+      "category": "Services",
+      "subcategory": "Flutter-only",
+      "name": "FaceTimeService",
+      "status": "missing",
+      "rust_file": "",
+      "rust_symbol": "",
+      "notes": "Flutter-specific service, not ported"
+    },
+    {
+      "category": "Services",
+      "subcategory": "Flutter-only",
+      "name": "SocketService (high-level wrapper)",
+      "status": "missing",
+      "rust_file": "",
+      "rust_symbol": "",
+      "notes": "Flutter-specific service, not ported"
+    },
+    {
+      "category": "Services",
+      "subcategory": "Flutter-only",
+      "name": "MethodChannelService",
+      "status": "missing",
+      "rust_file": "",
+      "rust_symbol": "",
+      "notes": "Flutter-specific service, not ported"
+    },
+    {
+      "category": "Services",
+      "subcategory": "Flutter-only",
+      "name": "IntentService",
+      "status": "missing",
+      "rust_file": "",
+      "rust_symbol": "",
+      "notes": "Flutter-specific service, not ported"
+    },
+    {
+      "category": "Services",
+      "subcategory": "Flutter-only",
+      "name": "PrivateApiService",
+      "status": "missing",
+      "rust_file": "",
+      "rust_symbol": "",
+      "notes": "Flutter-specific service, not ported"
+    },
+    {
+      "category": "CLI Commands",
+      "subcategory": "connect",
+      "name": "bb connect connect",
+      "status": "implemented",
+      "rust_file": "bb-cli/src/commands/connect.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "CLI Commands",
+      "subcategory": "status",
+      "name": "bb status status",
+      "status": "implemented",
+      "rust_file": "bb-cli/src/commands/status.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "CLI Commands",
+      "subcategory": "chats",
+      "name": "bb chats list",
+      "status": "implemented",
+      "rust_file": "bb-cli/src/commands/chats.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "CLI Commands",
+      "subcategory": "chats",
+      "name": "bb chats get",
+      "status": "implemented",
+      "rust_file": "bb-cli/src/commands/chats.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "CLI Commands",
+      "subcategory": "chats",
+      "name": "bb chats search",
+      "status": "implemented",
+      "rust_file": "bb-cli/src/commands/chats.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "CLI Commands",
+      "subcategory": "chats",
+      "name": "bb chats read",
+      "status": "implemented",
+      "rust_file": "bb-cli/src/commands/chats.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "CLI Commands",
+      "subcategory": "chats",
+      "name": "bb chats unread",
+      "status": "implemented",
+      "rust_file": "bb-cli/src/commands/chats.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "CLI Commands",
+      "subcategory": "messages",
+      "name": "bb messages list",
+      "status": "implemented",
+      "rust_file": "bb-cli/src/commands/messages.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "CLI Commands",
+      "subcategory": "messages",
+      "name": "bb messages get",
+      "status": "implemented",
+      "rust_file": "bb-cli/src/commands/messages.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "CLI Commands",
+      "subcategory": "messages",
+      "name": "bb messages search",
+      "status": "implemented",
+      "rust_file": "bb-cli/src/commands/messages.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "CLI Commands",
+      "subcategory": "messages",
+      "name": "bb messages send",
+      "status": "implemented",
+      "rust_file": "bb-cli/src/commands/messages.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "CLI Commands",
+      "subcategory": "messages",
+      "name": "bb messages react",
+      "status": "implemented",
+      "rust_file": "bb-cli/src/commands/messages.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "CLI Commands",
+      "subcategory": "messages",
+      "name": "bb messages edit",
+      "status": "implemented",
+      "rust_file": "bb-cli/src/commands/messages.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "CLI Commands",
+      "subcategory": "messages",
+      "name": "bb messages unsend",
+      "status": "implemented",
+      "rust_file": "bb-cli/src/commands/messages.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "CLI Commands",
+      "subcategory": "contacts",
+      "name": "bb contacts list",
+      "status": "implemented",
+      "rust_file": "bb-cli/src/commands/contacts.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "CLI Commands",
+      "subcategory": "contacts",
+      "name": "bb contacts search",
+      "status": "implemented",
+      "rust_file": "bb-cli/src/commands/contacts.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "CLI Commands",
+      "subcategory": "contacts",
+      "name": "bb contacts sync",
+      "status": "implemented",
+      "rust_file": "bb-cli/src/commands/contacts.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "CLI Commands",
+      "subcategory": "attachments",
+      "name": "bb attachments info",
+      "status": "implemented",
+      "rust_file": "bb-cli/src/commands/attachments.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "CLI Commands",
+      "subcategory": "attachments",
+      "name": "bb attachments download",
+      "status": "implemented",
+      "rust_file": "bb-cli/src/commands/attachments.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "CLI Commands",
+      "subcategory": "sync",
+      "name": "bb sync full",
+      "status": "implemented",
+      "rust_file": "bb-cli/src/commands/sync.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "CLI Commands",
+      "subcategory": "sync",
+      "name": "bb sync incremental",
+      "status": "implemented",
+      "rust_file": "bb-cli/src/commands/sync.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "CLI Commands",
+      "subcategory": "settings",
+      "name": "bb settings show",
+      "status": "implemented",
+      "rust_file": "bb-cli/src/commands/settings.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "CLI Commands",
+      "subcategory": "settings",
+      "name": "bb settings set-address",
+      "status": "stubbed",
+      "rust_file": "",
+      "rust_symbol": "",
+      "notes": "Module exists, checking for set-address"
+    },
+    {
+      "category": "CLI Commands",
+      "subcategory": "settings",
+      "name": "bb settings set-password",
+      "status": "stubbed",
+      "rust_file": "",
+      "rust_symbol": "",
+      "notes": "Module exists, checking for set-password"
+    },
+    {
+      "category": "CLI Commands",
+      "subcategory": "settings",
+      "name": "bb settings export",
+      "status": "implemented",
+      "rust_file": "bb-cli/src/commands/settings.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "CLI Commands",
+      "subcategory": "server",
+      "name": "bb server ping",
+      "status": "implemented",
+      "rust_file": "bb-cli/src/commands/server.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "CLI Commands",
+      "subcategory": "server",
+      "name": "bb server info",
+      "status": "implemented",
+      "rust_file": "bb-cli/src/commands/server.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "CLI Commands",
+      "subcategory": "server",
+      "name": "bb server stats",
+      "status": "implemented",
+      "rust_file": "bb-cli/src/commands/server.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "CLI Commands",
+      "subcategory": "server",
+      "name": "bb server restart",
+      "status": "implemented",
+      "rust_file": "bb-cli/src/commands/server.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "CLI Commands",
+      "subcategory": "server",
+      "name": "bb server restart-hard",
+      "status": "implemented",
+      "rust_file": "bb-cli/src/commands/server.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "CLI Commands",
+      "subcategory": "server",
+      "name": "bb server check-update",
+      "status": "implemented",
+      "rust_file": "bb-cli/src/commands/server.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "CLI Commands",
+      "subcategory": "server",
+      "name": "bb server logs",
+      "status": "implemented",
+      "rust_file": "bb-cli/src/commands/server.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "CLI Commands",
+      "subcategory": "db",
+      "name": "bb db stats",
+      "status": "implemented",
+      "rust_file": "bb-cli/src/commands/db.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "CLI Commands",
+      "subcategory": "db",
+      "name": "bb db check",
+      "status": "implemented",
+      "rust_file": "bb-cli/src/commands/db.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "CLI Commands",
+      "subcategory": "db",
+      "name": "bb db reset",
+      "status": "implemented",
+      "rust_file": "bb-cli/src/commands/db.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "CLI Commands",
+      "subcategory": "db",
+      "name": "bb db path",
+      "status": "implemented",
+      "rust_file": "bb-cli/src/commands/db.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "CLI Commands",
+      "subcategory": "logs",
+      "name": "bb logs view",
+      "status": "implemented",
+      "rust_file": "bb-cli/src/commands/logs.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "Core Infrastructure",
+      "subcategory": "Core",
+      "name": "AppConfig (TOML)",
+      "status": "implemented",
+      "rust_file": "bb-core/src/config.rs",
+      "rust_symbol": "AppConfig",
+      "notes": ""
+    },
+    {
+      "category": "Core Infrastructure",
+      "subcategory": "Core",
+      "name": "ServerConfig",
+      "status": "implemented",
+      "rust_file": "bb-core/src/config.rs",
+      "rust_symbol": "ServerConfig",
+      "notes": ""
+    },
+    {
+      "category": "Core Infrastructure",
+      "subcategory": "Core",
+      "name": "DatabaseConfig",
+      "status": "implemented",
+      "rust_file": "bb-core/src/config.rs",
+      "rust_symbol": "DatabaseConfig",
+      "notes": ""
+    },
+    {
+      "category": "Core Infrastructure",
+      "subcategory": "Core",
+      "name": "LoggingConfig",
+      "status": "implemented",
+      "rust_file": "bb-core/src/config.rs",
+      "rust_symbol": "LoggingConfig",
+      "notes": ""
+    },
+    {
+      "category": "Core Infrastructure",
+      "subcategory": "Core",
+      "name": "SyncConfig",
+      "status": "implemented",
+      "rust_file": "bb-core/src/config.rs",
+      "rust_symbol": "SyncConfig",
+      "notes": ""
+    },
+    {
+      "category": "Core Infrastructure",
+      "subcategory": "Core",
+      "name": "NotificationConfig",
+      "status": "implemented",
+      "rust_file": "bb-core/src/config.rs",
+      "rust_symbol": "NotificationConfig",
+      "notes": ""
+    },
+    {
+      "category": "Core Infrastructure",
+      "subcategory": "Core",
+      "name": "DisplayConfig",
+      "status": "implemented",
+      "rust_file": "bb-core/src/config.rs",
+      "rust_symbol": "DisplayConfig",
+      "notes": ""
+    },
+    {
+      "category": "Core Infrastructure",
+      "subcategory": "Core",
+      "name": "ConfigHandle (thread-safe)",
+      "status": "implemented",
+      "rust_file": "bb-core/src/config.rs",
+      "rust_symbol": "ConfigHandle",
+      "notes": ""
+    },
+    {
+      "category": "Core Infrastructure",
+      "subcategory": "Core",
+      "name": "BbError unified error type",
+      "status": "implemented",
+      "rust_file": "bb-core/src/error.rs",
+      "rust_symbol": "BbError",
+      "notes": ""
+    },
+    {
+      "category": "Core Infrastructure",
+      "subcategory": "Core",
+      "name": "MessageError codes",
+      "status": "implemented",
+      "rust_file": "bb-core/src/error.rs",
+      "rust_symbol": "MessageError",
+      "notes": ""
+    },
+    {
+      "category": "Core Infrastructure",
+      "subcategory": "Core",
+      "name": "init_logging (tracing + file rotation)",
+      "status": "implemented",
+      "rust_file": "bb-core/src/logging.rs",
+      "rust_symbol": "init_logging",
+      "notes": ""
+    },
+    {
+      "category": "Core Infrastructure",
+      "subcategory": "Core",
+      "name": "init_console_logging",
+      "status": "implemented",
+      "rust_file": "bb-core/src/logging.rs",
+      "rust_symbol": "init_console_logging",
+      "notes": ""
+    },
+    {
+      "category": "Core Infrastructure",
+      "subcategory": "Core",
+      "name": "Platform detection (Win/Mac/Linux)",
+      "status": "implemented",
+      "rust_file": "bb-core/src/platform.rs",
+      "rust_symbol": "Platform",
+      "notes": ""
+    },
+    {
+      "category": "Core Infrastructure",
+      "subcategory": "Core",
+      "name": "Platform data_dir / config_dir / cache_dir",
+      "status": "implemented",
+      "rust_file": "bb-core/src/platform.rs",
+      "rust_symbol": "data_dir",
+      "notes": ""
+    },
+    {
+      "category": "Core Infrastructure",
+      "subcategory": "Core",
+      "name": "Constants (reactions, effects, balloon bundles)",
+      "status": "implemented",
+      "rust_file": "bb-core/src/constants.rs",
+      "rust_symbol": "reactions",
+      "notes": ""
+    },
+    {
+      "category": "Core Infrastructure",
+      "subcategory": "Core",
+      "name": "AES-256-CBC crypto (CryptoJS compatible)",
+      "status": "implemented",
+      "rust_file": "bb-socket/src/crypto.rs",
+      "rust_symbol": "AesCrypto",
+      "notes": ""
+    },
+    {
+      "category": "Core Infrastructure",
+      "subcategory": "Core",
+      "name": "SocketEventType enum",
+      "status": "implemented",
+      "rust_file": "bb-socket/src/events.rs",
+      "rust_symbol": "SocketEventType",
+      "notes": ""
+    },
+    {
+      "category": "Core Infrastructure",
+      "subcategory": "Core",
+      "name": "EventDispatcher (broadcast channels)",
+      "status": "implemented",
+      "rust_file": "bb-socket/src/events.rs",
+      "rust_symbol": "EventDispatcher",
+      "notes": ""
+    },
+    {
+      "category": "Core Infrastructure",
+      "subcategory": "Core",
+      "name": "ConnectionState",
+      "status": "implemented",
+      "rust_file": "bb-socket/src/events.rs",
+      "rust_symbol": "ConnectionState",
+      "notes": ""
+    },
+    {
+      "category": "Core Infrastructure",
+      "subcategory": "Core",
+      "name": "SocketManager",
+      "status": "implemented",
+      "rust_file": "bb-socket/src/manager.rs",
+      "rust_symbol": "SocketManager",
+      "notes": ""
+    },
+    {
+      "category": "Core Infrastructure",
+      "subcategory": "Core",
+      "name": "Reconnect with exponential backoff + jitter",
+      "status": "implemented",
+      "rust_file": "bb-socket/src/manager.rs",
+      "rust_symbol": "reconnect_delay",
+      "notes": ""
+    },
+    {
+      "category": "Core Infrastructure",
+      "subcategory": "Core",
+      "name": "Event deduplication",
+      "status": "implemented",
+      "rust_file": "bb-socket/src/manager.rs",
+      "rust_symbol": "handled_guids",
+      "notes": ""
+    },
+    {
+      "category": "Core Infrastructure",
+      "subcategory": "Core",
+      "name": "Service trait",
+      "status": "implemented",
+      "rust_file": "bb-services/src/service.rs",
+      "rust_symbol": "trait Service",
+      "notes": ""
+    },
+    {
+      "category": "Core Infrastructure",
+      "subcategory": "Core",
+      "name": "ServiceState lifecycle",
+      "status": "implemented",
+      "rust_file": "bb-services/src/service.rs",
+      "rust_symbol": "ServiceState",
+      "notes": ""
+    },
+    {
+      "category": "Settings",
+      "subcategory": "Connection",
+      "name": "serverAddress",
+      "status": "implemented",
+      "rust_file": "bb-core/src/config.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "Settings",
+      "subcategory": "Connection",
+      "name": "guidAuthKey",
+      "status": "implemented",
+      "rust_file": "bb-core/src/config.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "Settings",
+      "subcategory": "Connection",
+      "name": "customHeaders",
+      "status": "implemented",
+      "rust_file": "bb-core/src/config.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "Settings",
+      "subcategory": "Connection",
+      "name": "apiTimeout",
+      "status": "implemented",
+      "rust_file": "bb-core/src/config.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "Settings",
+      "subcategory": "Connection",
+      "name": "acceptSelfSignedCerts",
+      "status": "implemented",
+      "rust_file": "bb-core/src/config.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "Settings",
+      "subcategory": "Sync",
+      "name": "finishedSetup",
+      "status": "implemented",
+      "rust_file": "bb-core/src/config.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "Settings",
+      "subcategory": "Sync",
+      "name": "lastIncrementalSync",
+      "status": "implemented",
+      "rust_file": "bb-core/src/config.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "Settings",
+      "subcategory": "Sync",
+      "name": "lastIncrementalSyncRowId",
+      "status": "implemented",
+      "rust_file": "bb-core/src/config.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "Settings",
+      "subcategory": "Sync",
+      "name": "messagesPerPage",
+      "status": "implemented",
+      "rust_file": "bb-core/src/config.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "Settings",
+      "subcategory": "Sync",
+      "name": "skipEmptyChats",
+      "status": "implemented",
+      "rust_file": "bb-core/src/config.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "Settings",
+      "subcategory": "Sync",
+      "name": "syncContactsAutomatically",
+      "status": "implemented",
+      "rust_file": "bb-core/src/config.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "Settings",
+      "subcategory": "Notifications",
+      "name": "notifyReactions",
+      "status": "implemented",
+      "rust_file": "bb-core/src/config.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "Settings",
+      "subcategory": "Notifications",
+      "name": "notifyOnChatList",
+      "status": "implemented",
+      "rust_file": "bb-core/src/config.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "Settings",
+      "subcategory": "Notifications",
+      "name": "filterUnknownSenders",
+      "status": "implemented",
+      "rust_file": "bb-core/src/config.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "Settings",
+      "subcategory": "Notifications",
+      "name": "globalTextDetection",
+      "status": "implemented",
+      "rust_file": "bb-core/src/config.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "Settings",
+      "subcategory": "Display",
+      "name": "userName",
+      "status": "implemented",
+      "rust_file": "bb-core/src/config.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "Settings",
+      "subcategory": "Display",
+      "name": "use24HrFormat",
+      "status": "missing",
+      "rust_file": "",
+      "rust_symbol": "",
+      "notes": "Not in TOML config yet"
+    },
+    {
+      "category": "Settings",
+      "subcategory": "Display",
+      "name": "redactedMode",
+      "status": "implemented",
+      "rust_file": "bb-core/src/config.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "Settings",
+      "subcategory": "Theme",
+      "name": "selectedTheme",
+      "status": "implemented",
+      "rust_file": "bb-core/src/config.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "Settings",
+      "subcategory": "Theme",
+      "name": "skin",
+      "status": "implemented",
+      "rust_file": "bb-core/src/config.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "Settings",
+      "subcategory": "Theme",
+      "name": "colorfulAvatars",
+      "status": "implemented",
+      "rust_file": "bb-core/src/config.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "Settings",
+      "subcategory": "Theme",
+      "name": "colorfulBubbles",
+      "status": "implemented",
+      "rust_file": "bb-core/src/config.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "Settings",
+      "subcategory": "Theme",
+      "name": "monetTheming",
+      "status": "implemented",
+      "rust_file": "bb-core/src/config.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "Settings",
+      "subcategory": "Privacy",
+      "name": "incognitoMode",
+      "status": "implemented",
+      "rust_file": "bb-core/src/config.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "Settings",
+      "subcategory": "Privacy",
+      "name": "hideMessagePreview",
+      "status": "implemented",
+      "rust_file": "bb-core/src/config.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "Settings",
+      "subcategory": "Privacy",
+      "name": "generateFakeContactNames",
+      "status": "implemented",
+      "rust_file": "bb-core/src/config.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "Settings",
+      "subcategory": "Privacy",
+      "name": "generateFakeMessageContent",
+      "status": "implemented",
+      "rust_file": "bb-core/src/config.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "Settings",
+      "subcategory": "Conversation",
+      "name": "autoOpenKeyboard",
+      "status": "implemented",
+      "rust_file": "bb-core/src/config.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "Settings",
+      "subcategory": "Conversation",
+      "name": "swipeToReply",
+      "status": "implemented",
+      "rust_file": "bb-core/src/config.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "Settings",
+      "subcategory": "Conversation",
+      "name": "swipeToArchive",
+      "status": "implemented",
+      "rust_file": "bb-core/src/config.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "Settings",
+      "subcategory": "Conversation",
+      "name": "moveChatCreatorToHeader",
+      "status": "implemented",
+      "rust_file": "bb-core/src/config.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "Settings",
+      "subcategory": "Conversation",
+      "name": "doubleTapForDetails",
+      "status": "implemented",
+      "rust_file": "bb-core/src/config.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "Settings",
+      "subcategory": "Conversation",
+      "name": "autoPlayGifs",
+      "status": "implemented",
+      "rust_file": "bb-core/src/config.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "Settings",
+      "subcategory": "Conversation",
+      "name": "showDeliveryTimestamps",
+      "status": "implemented",
+      "rust_file": "bb-core/src/config.rs",
+      "rust_symbol": "",
+      "notes": ""
+    },
+    {
+      "category": "UI Screens",
+      "subcategory": "Tauri UI",
+      "name": "SetupView (initial setup wizard)",
+      "status": "missing",
+      "rust_file": "",
+      "rust_symbol": "",
+      "notes": "Tauri UI not yet started"
+    },
+    {
+      "category": "UI Screens",
+      "subcategory": "Tauri UI",
+      "name": "ConversationList",
+      "status": "missing",
+      "rust_file": "",
+      "rust_symbol": "",
+      "notes": "Tauri UI not yet started"
+    },
+    {
+      "category": "UI Screens",
+      "subcategory": "Tauri UI",
+      "name": "ConversationView (message thread)",
+      "status": "missing",
+      "rust_file": "",
+      "rust_symbol": "",
+      "notes": "Tauri UI not yet started"
+    },
+    {
+      "category": "UI Screens",
+      "subcategory": "Tauri UI",
+      "name": "MessageWidget",
+      "status": "missing",
+      "rust_file": "",
+      "rust_symbol": "",
+      "notes": "Tauri UI not yet started"
+    },
+    {
+      "category": "UI Screens",
+      "subcategory": "Tauri UI",
+      "name": "SearchView (global search)",
+      "status": "missing",
+      "rust_file": "",
+      "rust_symbol": "",
+      "notes": "Tauri UI not yet started"
+    },
+    {
+      "category": "UI Screens",
+      "subcategory": "Tauri UI",
+      "name": "CreateChat",
+      "status": "missing",
+      "rust_file": "",
+      "rust_symbol": "",
+      "notes": "Tauri UI not yet started"
+    },
+    {
+      "category": "UI Screens",
+      "subcategory": "Tauri UI",
+      "name": "ConversationDetails",
+      "status": "missing",
+      "rust_file": "",
+      "rust_symbol": "",
+      "notes": "Tauri UI not yet started"
+    },
+    {
+      "category": "UI Screens",
+      "subcategory": "Tauri UI",
+      "name": "AttachmentFullscreenViewer",
+      "status": "missing",
+      "rust_file": "",
+      "rust_symbol": "",
+      "notes": "Tauri UI not yet started"
+    },
+    {
+      "category": "UI Screens",
+      "subcategory": "Tauri UI",
+      "name": "CameraWidget",
+      "status": "missing",
+      "rust_file": "",
+      "rust_symbol": "",
+      "notes": "Tauri UI not yet started"
+    },
+    {
+      "category": "UI Screens",
+      "subcategory": "Tauri UI",
+      "name": "SettingsPanel (main)",
+      "status": "missing",
+      "rust_file": "",
+      "rust_symbol": "",
+      "notes": "Tauri UI not yet started"
+    },
+    {
+      "category": "UI Screens",
+      "subcategory": "Tauri UI",
+      "name": "SettingsPanel > Connection & Server",
+      "status": "missing",
+      "rust_file": "",
+      "rust_symbol": "",
+      "notes": "Tauri UI not yet started"
+    },
+    {
+      "category": "UI Screens",
+      "subcategory": "Tauri UI",
+      "name": "SettingsPanel > Message & Notification",
+      "status": "missing",
+      "rust_file": "",
+      "rust_symbol": "",
+      "notes": "Tauri UI not yet started"
+    },
+    {
+      "category": "UI Screens",
+      "subcategory": "Tauri UI",
+      "name": "SettingsPanel > Theme & Style",
+      "status": "missing",
+      "rust_file": "",
+      "rust_symbol": "",
+      "notes": "Tauri UI not yet started"
+    },
+    {
+      "category": "UI Screens",
+      "subcategory": "Tauri UI",
+      "name": "SettingsPanel > Desktop & Tray",
+      "status": "missing",
+      "rust_file": "",
+      "rust_symbol": "",
+      "notes": "Tauri UI not yet started"
+    },
+    {
+      "category": "UI Screens",
+      "subcategory": "Tauri UI",
+      "name": "SettingsPanel > Chat List",
+      "status": "missing",
+      "rust_file": "",
+      "rust_symbol": "",
+      "notes": "Tauri UI not yet started"
+    },
+    {
+      "category": "UI Screens",
+      "subcategory": "Tauri UI",
+      "name": "SettingsPanel > Conversation",
+      "status": "missing",
+      "rust_file": "",
+      "rust_symbol": "",
+      "notes": "Tauri UI not yet started"
+    },
+    {
+      "category": "UI Screens",
+      "subcategory": "Tauri UI",
+      "name": "SettingsPanel > Misc & Advanced",
+      "status": "missing",
+      "rust_file": "",
+      "rust_symbol": "",
+      "notes": "Tauri UI not yet started"
+    },
+    {
+      "category": "UI Screens",
+      "subcategory": "Tauri UI",
+      "name": "SettingsPanel > About & Links",
+      "status": "missing",
+      "rust_file": "",
+      "rust_symbol": "",
+      "notes": "Tauri UI not yet started"
+    },
+    {
+      "category": "UI Screens",
+      "subcategory": "Tauri UI",
+      "name": "SettingsPanel > Backup & Restore",
+      "status": "missing",
+      "rust_file": "",
+      "rust_symbol": "",
+      "notes": "Tauri UI not yet started"
+    },
+    {
+      "category": "UI Screens",
+      "subcategory": "Tauri UI",
+      "name": "SettingsPanel > FindMy",
+      "status": "missing",
+      "rust_file": "",
+      "rust_symbol": "",
+      "notes": "Tauri UI not yet started"
+    },
+    {
+      "category": "UI Screens",
+      "subcategory": "Tauri UI",
+      "name": "SettingsPanel > Troubleshooting",
+      "status": "missing",
+      "rust_file": "",
+      "rust_symbol": "",
+      "notes": "Tauri UI not yet started"
+    },
+    {
+      "category": "UI Screens",
+      "subcategory": "Tauri UI",
+      "name": "ThemePicker",
+      "status": "missing",
+      "rust_file": "",
+      "rust_symbol": "",
+      "notes": "Tauri UI not yet started"
+    },
+    {
+      "category": "UI Screens",
+      "subcategory": "Tauri UI",
+      "name": "FontPicker",
+      "status": "missing",
+      "rust_file": "",
+      "rust_symbol": "",
+      "notes": "Tauri UI not yet started"
+    },
+    {
+      "category": "UI Screens",
+      "subcategory": "Tauri UI",
+      "name": "FindMyDevicesList",
+      "status": "missing",
+      "rust_file": "",
+      "rust_symbol": "",
+      "notes": "Tauri UI not yet started"
+    },
+    {
+      "category": "UI Screens",
+      "subcategory": "Tauri UI",
+      "name": "FindMyFriendsList",
+      "status": "missing",
+      "rust_file": "",
+      "rust_symbol": "",
+      "notes": "Tauri UI not yet started"
+    },
+    {
+      "category": "UI Screens",
+      "subcategory": "Tauri UI",
+      "name": "ScheduledMessagesView",
+      "status": "missing",
+      "rust_file": "",
+      "rust_symbol": "",
+      "notes": "Tauri UI not yet started"
+    }
+  ]
+}
