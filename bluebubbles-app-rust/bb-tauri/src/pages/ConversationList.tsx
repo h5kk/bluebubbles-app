@@ -1,28 +1,28 @@
 /**
  * ConversationList page - rendered inside the Sidebar.
- * Fetches and displays the chat list using the chatStore.
- * Implements spec 02-conversation-list.md.
+ * macOS Messages style with pinned avatars in horizontal row.
  */
-import { useEffect, useCallback, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useCallback, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 import { useChatStore } from "@/store/chatStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { ConversationTile } from "@/components/ConversationTile";
+import { Avatar, GroupAvatar } from "@/components/Avatar";
 import { ContextMenu, type ContextMenuItem } from "@/components/ContextMenu";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 
 export function ConversationList() {
   const navigate = useNavigate();
-  const {
-    chats,
-    loading,
-    hasMore,
-    selectedChatGuid,
-    searchQuery,
-    fetchChats,
-    loadMore,
-    selectChat,
-  } = useChatStore();
+  // Granular selectors: only re-render when the specific slice changes
+  const chats = useChatStore((s) => s.chats);
+  const loading = useChatStore((s) => s.loading);
+  const hasMore = useChatStore((s) => s.hasMore);
+  const selectedChatGuid = useChatStore((s) => s.selectedChatGuid);
+  const searchQuery = useChatStore((s) => s.searchQuery);
+  const fetchChats = useChatStore((s) => s.fetchChats);
+  const refreshChats = useChatStore((s) => s.refreshChats);
+  const loadMore = useChatStore((s) => s.loadMore);
+  const selectChat = useChatStore((s) => s.selectChat);
   const { loaded: settingsLoaded } = useSettingsStore();
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -41,6 +41,17 @@ export function ConversationList() {
       fetchChats();
     }
   }, [settingsLoaded, fetchChats]);
+
+  // Background polling - refresh chat list every 20 seconds
+  useEffect(() => {
+    if (!settingsLoaded) return;
+
+    const interval = setInterval(() => {
+      refreshChats();
+    }, 20_000);
+
+    return () => clearInterval(interval);
+  }, [settingsLoaded, refreshChats]);
 
   // Handle chat selection
   const handleSelectChat = useCallback(
@@ -79,58 +90,52 @@ export function ConversationList() {
     }
   }, [loading, hasMore, loadMore]);
 
-  // Filter chats by search query
-  const filteredChats = searchQuery
-    ? chats.filter((c) => {
-        const q = searchQuery.toLowerCase();
-        const title = (
-          c.chat.display_name ||
-          c.participant_names.join(", ") ||
-          c.chat.chat_identifier ||
-          ""
-        ).toLowerCase();
-        const preview = (c.latest_message_text ?? "").toLowerCase();
-        return title.includes(q) || preview.includes(q);
-      })
-    : chats;
+  // Filter chats by search query - memoized to avoid recomputing on unrelated renders
+  const filteredChats = useMemo(
+    () =>
+      searchQuery
+        ? chats.filter((c) => {
+            const q = searchQuery.toLowerCase();
+            const title = (
+              c.chat.display_name ||
+              c.participant_names.join(", ") ||
+              c.chat.chat_identifier ||
+              ""
+            ).toLowerCase();
+            const preview = (c.latest_message_text ?? "").toLowerCase();
+            return title.includes(q) || preview.includes(q);
+          })
+        : chats,
+    [chats, searchQuery]
+  );
 
-  // Separate pinned and unpinned
-  const pinned = filteredChats.filter((c) => c.chat.is_pinned);
-  const unpinned = filteredChats.filter((c) => !c.chat.is_pinned);
+  // Separate pinned and unpinned - memoized for stable references
+  const pinned = useMemo(() => filteredChats.filter((c) => c.chat.is_pinned), [filteredChats]);
+  const unpinned = useMemo(() => filteredChats.filter((c) => !c.chat.is_pinned), [filteredChats]);
 
   // Build context menu items
   const contextMenuItems: ContextMenuItem[] = [
     {
       label: "Mark as Read",
-      onClick: () => {
-        // Will integrate with tauriUpdateSetting or dedicated command
-      },
+      onClick: () => {},
     },
     {
       label: "Pin Conversation",
-      onClick: () => {
-        // Will integrate with chat pin command
-      },
+      onClick: () => {},
     },
     { label: "", onClick: () => {}, divider: true },
     {
       label: "Mute Conversation",
-      onClick: () => {
-        // Will integrate with mute command
-      },
+      onClick: () => {},
     },
     { label: "", onClick: () => {}, divider: true },
     {
       label: "Archive",
-      onClick: () => {
-        // Will integrate with archive command
-      },
+      onClick: () => {},
     },
     {
       label: "Delete",
-      onClick: () => {
-        // Will integrate with delete command
-      },
+      onClick: () => {},
       destructive: true,
     },
   ];
@@ -153,58 +158,118 @@ export function ConversationList() {
         onScroll={handleScroll}
         style={{ flex: 1, overflow: "auto" }}
       >
-        {/* Pinned section */}
+        {/* Pinned section - large circular avatars in horizontal row */}
         {pinned.length > 0 && (
-          <>
-            <div
-              style={{
-                padding: "8px 16px 4px",
-                fontSize: "var(--font-label-small)",
-                fontWeight: 600,
-                color: "var(--color-outline)",
-                textTransform: "uppercase",
-                letterSpacing: "0.8px",
-              }}
-            >
-              Pinned
-            </div>
-            {pinned.map((chat) => (
-              <ConversationTile
-                key={chat.chat.guid}
-                chat={chat}
-                isActive={chat.chat.guid === selectedChatGuid}
-                onClick={handleSelectChat}
-                onContextMenu={handleContextMenu}
-              />
-            ))}
-          </>
-        )}
-
-        {/* Main chat list */}
-        {pinned.length > 0 && unpinned.length > 0 && (
           <div
             style={{
-              padding: "8px 16px 4px",
-              fontSize: "var(--font-label-small)",
-              fontWeight: 600,
-              color: "var(--color-outline)",
-              textTransform: "uppercase",
-              letterSpacing: "0.8px",
+              padding: "8px 12px 12px",
+              display: "flex",
+              gap: 16,
+              overflowX: "auto",
+              overflowY: "hidden",
+              flexShrink: 0,
+              borderBottom: "1px solid var(--color-surface-variant)",
             }}
           >
-            All Messages
+            {pinned.map((chat) => {
+              const chatData = chat.chat;
+              const isGroup = chatData.participants.length > 1;
+              const name =
+                chatData.display_name ||
+                chat.participant_names.join(", ") ||
+                chatData.chat_identifier ||
+                "Unknown";
+              const isActive = chatData.guid === selectedChatGuid;
+              const hasUnread = chatData.has_unread_message;
+
+              return (
+                <div
+                  key={chatData.guid}
+                  onClick={() => handleSelectChat(chatData.guid)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    handleContextMenu(chatData.guid, e);
+                  }}
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 4,
+                    cursor: "pointer",
+                    minWidth: 64,
+                    maxWidth: 72,
+                    position: "relative",
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={name}
+                >
+                  {/* Avatar with status indicator */}
+                  <div style={{ position: "relative" }}>
+                    {isGroup ? (
+                      <GroupAvatar
+                        participants={chatData.participants.map((p, i) => ({
+                          name: chat.participant_names[i] ?? p.address,
+                          address: p.address,
+                        }))}
+                        size={56}
+                      />
+                    ) : (
+                      <Avatar
+                        name={name}
+                        address={chatData.participants[0]?.address ?? chatData.guid}
+                        size={56}
+                      />
+                    )}
+                    {/* Online/status indicator dot */}
+                    <div
+                      style={{
+                        position: "absolute",
+                        bottom: 1,
+                        right: 1,
+                        width: 14,
+                        height: 14,
+                        borderRadius: "50%",
+                        backgroundColor: hasUnread ? "#007AFF" : "#34C759",
+                        border: "2px solid var(--color-background)",
+                      }}
+                    />
+                  </div>
+
+                  {/* Contact name */}
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: isActive ? 600 : 400,
+                      color: "var(--color-on-surface)",
+                      textAlign: "center",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                      width: "100%",
+                      lineHeight: 1.2,
+                    }}
+                  >
+                    {name.split(",")[0]}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         )}
 
-        {unpinned.map((chat) => (
-          <ConversationTile
-            key={chat.chat.guid}
-            chat={chat}
-            isActive={chat.chat.guid === selectedChatGuid}
-            onClick={handleSelectChat}
-            onContextMenu={handleContextMenu}
-          />
-        ))}
+        {/* Regular conversation list */}
+        <div style={{ padding: "4px 8px" }}>
+          {unpinned.map((chat) => (
+            <ConversationTile
+              key={chat.chat.guid}
+              chat={chat}
+              isActive={chat.chat.guid === selectedChatGuid}
+              onClick={handleSelectChat}
+              onContextMenu={handleContextMenu}
+            />
+          ))}
+        </div>
 
         {/* Loading indicator */}
         {loading && (
@@ -222,13 +287,10 @@ export function ConversationList() {
         {/* Empty state */}
         {!loading && filteredChats.length === 0 && (
           <div style={emptyStyle}>
-            <span style={{ fontSize: 32 }}>{"\uD83D\uDCAC"}</span>
-            <span style={{ fontSize: "var(--font-body-large)", fontWeight: 500 }}>
-              {searchQuery ? "No results found" : "No conversations yet"}
-            </span>
+            <span style={{ fontSize: 32, opacity: 0.5 }}>No conversations</span>
             <span style={{ fontSize: "var(--font-body-medium)", textAlign: "center" }}>
               {searchQuery
-                ? "Try a different search term"
+                ? "No results found"
                 : "Connect to your BlueBubbles server to start messaging"}
             </span>
           </div>

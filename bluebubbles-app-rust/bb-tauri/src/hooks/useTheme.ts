@@ -17,6 +17,8 @@ const THEME_MAP: Record<string, string> = {
   "Pink Light": "pink-light",
   "Green Dark": "green-dark",
   "Purple Dark": "purple-dark",
+  "Liquid Glass Light": "liquid-glass-light",
+  "Liquid Glass Dark": "liquid-glass-dark",
 };
 
 function getSystemDarkMode(): boolean {

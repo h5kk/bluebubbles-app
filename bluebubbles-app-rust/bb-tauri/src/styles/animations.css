@@ -207,3 +207,8 @@
 .animate-send {
   animation: messageSend var(--anim-send) ease-out;
 }
+
+/* ConversationTile tap feedback via CSS instead of framer-motion */
+.conversation-tile:active {
+  transform: scale(0.98);
+}

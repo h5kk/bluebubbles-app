@@ -3,7 +3,7 @@
  */
 import { create } from "zustand";
 import type { ChatWithPreview } from "@/hooks/useTauri";
-import { tauriGetChats } from "@/hooks/useTauri";
+import { tauriGetChats, tauriRefreshChats, tauriMarkChatRead } from "@/hooks/useTauri";
 
 interface ChatState {
   chats: ChatWithPreview[];
@@ -13,15 +13,23 @@ interface ChatState {
   hasMore: boolean;
   selectedChatGuid: string | null;
   searchQuery: string;
+  isRefreshing: boolean;
+  lastRefreshTime: number | null;
 
   fetchChats: (reset?: boolean) => Promise<void>;
+  refreshChats: () => Promise<void>;
   loadMore: () => Promise<void>;
   selectChat: (guid: string | null) => void;
   setSearchQuery: (query: string) => void;
   updateChat: (guid: string, update: Partial<ChatWithPreview>) => void;
+  updateChatPreview: (
+    chatGuid: string,
+    message: { text: string | null; date_created: string | null; is_from_me?: boolean }
+  ) => void;
+  markChatRead: (chatGuid: string) => Promise<void>;
 }
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 200;
 
 export const useChatStore = create<ChatState>((set, get) => ({
   chats: [],
@@ -31,6 +39,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   hasMore: true,
   selectedChatGuid: null,
   searchQuery: "",
+  isRefreshing: false,
+  lastRefreshTime: null,
 
   fetchChats: async (reset = true) => {
     set({ loading: true, error: null });
@@ -51,6 +61,37 @@ export const useChatStore = create<ChatState>((set, get) => ({
         error: err instanceof Error ? err.message : String(err),
         loading: false,
       });
+    }
+  },
+
+  refreshChats: async () => {
+    // Silent background refresh - does not set loading or clear chats
+    set({ isRefreshing: true });
+    try {
+      const freshChats = await tauriRefreshChats(PAGE_SIZE);
+      const { chats: currentChats, selectedChatGuid } = get();
+
+      // Merge: use fresh data but preserve any chats that exist locally
+      // beyond the refresh limit (older chats from pagination)
+      const freshGuids = new Set(freshChats.map((c) => c.chat.guid));
+      const olderChats = currentChats.filter((c) => !freshGuids.has(c.chat.guid));
+
+      // If the currently selected chat was marked unread on server but we have it
+      // open, keep it as read locally
+      const merged = freshChats.map((c) => {
+        if (c.chat.guid === selectedChatGuid && c.chat.has_unread_message) {
+          return {
+            ...c,
+            chat: { ...c.chat, has_unread_message: false },
+          };
+        }
+        return c;
+      });
+
+      set({ chats: [...merged, ...olderChats], isRefreshing: false, lastRefreshTime: Date.now() });
+    } catch {
+      // Silently fail on background refresh - don't overwrite existing data
+      set({ isRefreshing: false });
     }
   },
 
@@ -86,5 +127,52 @@ export const useChatStore = create<ChatState>((set, get) => ({
         c.chat.guid === guid ? { ...c, ...update } : c
       ),
     });
+  },
+
+  updateChatPreview: (chatGuid, message) => {
+    const { chats } = get();
+    const idx = chats.findIndex((c) => c.chat.guid === chatGuid);
+    if (idx === -1) return;
+
+    const isFromMe = message.is_from_me ?? true;
+
+    const updated: ChatWithPreview = {
+      ...chats[idx],
+      latest_message_text: message.text,
+      latest_message_date: message.date_created,
+      latest_message_is_from_me: isFromMe,
+    };
+
+    // If the message is incoming and this chat is not currently selected,
+    // mark it as unread
+    if (!isFromMe) {
+      const { selectedChatGuid } = get();
+      if (selectedChatGuid !== chatGuid) {
+        updated.chat = { ...updated.chat, has_unread_message: true };
+      }
+    }
+
+    // Move the chat to the top of the list
+    const rest = chats.filter((_, i) => i !== idx);
+    set({ chats: [updated, ...rest] });
+  },
+
+  markChatRead: async (chatGuid: string) => {
+    // Optimistically update local state
+    const { chats } = get();
+    set({
+      chats: chats.map((c) =>
+        c.chat.guid === chatGuid
+          ? { ...c, chat: { ...c.chat, has_unread_message: false } }
+          : c
+      ),
+    });
+
+    // Call the backend to persist and notify the server
+    try {
+      await tauriMarkChatRead(chatGuid);
+    } catch (err) {
+      console.error("failed to mark chat as read:", err);
+    }
   },
 }));

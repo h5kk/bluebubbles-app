@@ -54,9 +54,9 @@ export function SearchBar({
     alignItems: "center",
     gap: 8,
     backgroundColor: "var(--color-surface-variant)",
-    borderRadius: 10,
-    padding: "6px 12px",
-    margin: "0 16px",
+    borderRadius: 18,
+    padding: "6px 14px",
+    margin: 0,
   };
 
   return (

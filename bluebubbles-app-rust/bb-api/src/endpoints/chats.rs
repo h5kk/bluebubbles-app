@@ -208,6 +208,16 @@ impl ApiClient {
         Ok(())
     }
 
+    /// Send a typing indicator for a chat.
+    ///
+    /// Requires the Private API to be enabled on the server.
+    /// `status` should be `"start"` or `"stop"`.
+    pub async fn send_typing_indicator(&self, guid: &str, status: &str) -> BbResult<()> {
+        let body = serde_json::json!({ "status": status });
+        self.post(&format!("/chat/{guid}/typing"), &body).await?;
+        Ok(())
+    }
+
     /// Delete a specific message from a chat.
     pub async fn delete_chat_message(
         &self,

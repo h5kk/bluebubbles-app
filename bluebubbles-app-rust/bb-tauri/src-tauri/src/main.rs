@@ -59,20 +59,33 @@ fn main() {
         .manage(app_state)
         .invoke_handler(tauri::generate_handler![
             commands::connect,
+            commands::try_auto_connect,
             commands::get_server_info,
             commands::get_chats,
+            commands::refresh_chats,
+            commands::mark_chat_read,
             commands::get_messages,
             commands::send_message,
             commands::search_messages,
             commands::get_contacts,
+            commands::get_contact_avatar,
+            commands::get_all_contact_avatars,
+            commands::sync_contact_avatars,
             commands::download_attachment,
             commands::get_settings,
             commands::update_setting,
             commands::sync_full,
+            commands::sync_messages,
+            commands::check_messages_synced,
             commands::get_themes,
             commands::set_theme,
             commands::check_setup_complete,
             commands::complete_setup,
+            commands::check_private_api_status,
+            commands::send_typing_indicator,
+            commands::send_reaction,
+            commands::edit_message,
+            commands::unsend_message,
         ])
         .setup(|app| {
             // Setup system tray

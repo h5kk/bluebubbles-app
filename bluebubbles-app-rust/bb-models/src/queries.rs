@@ -8,6 +8,7 @@
 //! (keyset pagination on date_created) rather than OFFSET-based pagination,
 //! which avoids the O(n) skip cost that degraded Flutter performance.
 
+use std::collections::HashMap;
 use rusqlite::{params, Connection};
 use bb_core::error::{BbError, BbResult};
 
@@ -49,6 +50,8 @@ pub struct ChatWithDetails {
 /// List chats ordered by pinned-first then latest message date.
 ///
 /// Joins with messages to get last message info and unread count.
+/// After loading chats, batch-loads all participants (handles) with their
+/// associated contacts in a single query to avoid N+1 performance issues.
 pub fn list_chats_with_details(
     conn: &Connection,
     offset: i64,
@@ -60,7 +63,7 @@ pub fn list_chats_with_details(
     let sql = format!(
         "SELECT c.*,
             COALESCE((SELECT COUNT(*) FROM messages m2 WHERE m2.chat_id = c.id AND m2.date_read IS NULL AND m2.is_from_me = 0 AND m2.date_deleted IS NULL), 0) AS unread_count,
-            lm.text AS last_message_text,
+            COALESCE(lm.text, CASE WHEN lm.has_attachments = 1 THEN 'Attachment' ELSE NULL END) AS last_message_text,
             lm.date_created AS last_message_date_computed,
             COALESCE(lm.is_from_me, 0) AS last_message_is_from_me,
             COALESCE((SELECT COUNT(*) FROM chat_handle_join chj WHERE chj.chat_id = c.id), 0) AS participant_count
@@ -70,12 +73,12 @@ pub fn list_chats_with_details(
             ORDER BY m.date_created DESC LIMIT 1
         )
         {archive_filter}
-        ORDER BY c.is_pinned DESC, c.pin_index ASC, c.latest_message_date DESC
+        ORDER BY c.is_pinned DESC, c.pin_index ASC, COALESCE(c.latest_message_date, lm.date_created, '0') DESC
         LIMIT ?1 OFFSET ?2"
     );
 
     let mut stmt = conn.prepare(&sql).map_err(|e| BbError::Database(e.to_string()))?;
-    let results = stmt
+    let mut results: Vec<ChatWithDetails> = stmt
         .query_map(params![limit, offset], |row| {
             let chat = Chat::from_row(row)?;
             Ok(ChatWithDetails {
@@ -91,7 +94,202 @@ pub fn list_chats_with_details(
         .filter_map(|r| r.ok())
         .collect();
 
+    // Batch-load participants for all chats in one query
+    if !results.is_empty() {
+        let chat_ids: Vec<i64> = results.iter()
+            .filter_map(|d| d.chat.id)
+            .collect();
+
+        if !chat_ids.is_empty() {
+            let participants_map = batch_load_participants_with_contacts(conn, &chat_ids)?;
+
+            for detail in &mut results {
+                if let Some(chat_id) = detail.chat.id {
+                    if let Some(handles) = participants_map.get(&chat_id) {
+                        detail.chat.participants = handles.clone();
+                    }
+                }
+            }
+        }
+    }
+
     Ok(results)
+}
+
+/// Batch-load participants (handles) with resolved contacts for multiple chats.
+///
+/// Performs a single query joining chat_handle_join -> handles -> contacts
+/// (via contact_id). Then does a second pass to resolve contacts by address
+/// matching for any handles that didn't have a contact_id link.
+fn batch_load_participants_with_contacts(
+    conn: &Connection,
+    chat_ids: &[i64],
+) -> BbResult<HashMap<i64, Vec<Handle>>> {
+    if chat_ids.is_empty() {
+        return Ok(HashMap::new());
+    }
+
+    // Build a comma-separated placeholder list for the IN clause
+    let placeholders: Vec<String> = (1..=chat_ids.len()).map(|i| format!("?{i}")).collect();
+    let in_clause = placeholders.join(",");
+
+    // Query handles joined with contacts via contact_id
+    let sql = format!(
+        "SELECT chj.chat_id,
+                h.id AS h_id,
+                h.original_rowid AS h_original_rowid,
+                h.address AS h_address,
+                h.service AS h_service,
+                h.unique_address_service AS h_unique_address_service,
+                h.formatted_address AS h_formatted_address,
+                h.country AS h_country,
+                h.color AS h_color,
+                h.default_phone AS h_default_phone,
+                h.default_email AS h_default_email,
+                h.contact_id AS h_contact_id,
+                ct.id AS ct_id,
+                ct.external_id AS ct_external_id,
+                ct.display_name AS ct_display_name,
+                ct.phones AS ct_phones,
+                ct.emails AS ct_emails,
+                ct.avatar AS ct_avatar,
+                ct.structured_name AS ct_structured_name
+         FROM chat_handle_join chj
+         INNER JOIN handles h ON h.id = chj.handle_id
+         LEFT JOIN contacts ct ON h.contact_id IS NOT NULL AND ct.id = h.contact_id
+         WHERE chj.chat_id IN ({in_clause})
+         ORDER BY h.address"
+    );
+
+    let mut stmt = conn.prepare(&sql).map_err(|e| BbError::Database(e.to_string()))?;
+
+    let params: Vec<Box<dyn rusqlite::types::ToSql>> = chat_ids
+        .iter()
+        .map(|id| Box::new(*id) as Box<dyn rusqlite::types::ToSql>)
+        .collect();
+    let param_refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
+
+    let rows = stmt
+        .query_map(param_refs.as_slice(), |row| {
+            let chat_id: i64 = row.get("chat_id")?;
+
+            let mut handle = Handle {
+                id: row.get("h_id")?,
+                original_rowid: row.get("h_original_rowid")?,
+                address: row.get("h_address")?,
+                service: row.get("h_service")?,
+                unique_address_service: row.get("h_unique_address_service")?,
+                formatted_address: row.get("h_formatted_address")?,
+                country: row.get("h_country")?,
+                color: row.get("h_color")?,
+                default_phone: row.get("h_default_phone")?,
+                default_email: row.get("h_default_email")?,
+                contact_id: row.get("h_contact_id")?,
+                contact: None,
+            };
+
+            // If the join produced a contact row, attach it
+            let ct_id: Option<i64> = row.get("ct_id")?;
+            if ct_id.is_some() {
+                handle.contact = Some(Box::new(Contact {
+                    id: ct_id,
+                    external_id: row.get("ct_external_id")?,
+                    display_name: row.get("ct_display_name")?,
+                    phones: row.get::<_, Option<String>>("ct_phones")?.unwrap_or_else(|| "[]".to_string()),
+                    emails: row.get::<_, Option<String>>("ct_emails")?.unwrap_or_else(|| "[]".to_string()),
+                    avatar: row.get("ct_avatar")?,
+                    structured_name: row.get("ct_structured_name")?,
+                }));
+            }
+
+            Ok((chat_id, handle))
+        })
+        .map_err(|e| BbError::Database(e.to_string()))?;
+
+    let mut map: HashMap<i64, Vec<Handle>> = HashMap::new();
+    let mut unresolved: Vec<(i64, usize)> = Vec::new(); // (chat_id, index in map vec)
+
+    for row_result in rows {
+        if let Ok((chat_id, handle)) = row_result {
+            let needs_contact = handle.contact.is_none();
+            let entry = map.entry(chat_id).or_default();
+            let idx = entry.len();
+            entry.push(handle);
+            if needs_contact {
+                unresolved.push((chat_id, idx));
+            }
+        }
+    }
+
+    // Second pass: try to resolve contacts by address matching for handles
+    // that didn't have a contact_id link
+    if !unresolved.is_empty() {
+        // Collect unique addresses that need resolution
+        let mut addresses_to_resolve: Vec<String> = Vec::new();
+        for &(chat_id, idx) in &unresolved {
+            if let Some(handles) = map.get(&chat_id) {
+                if let Some(handle) = handles.get(idx) {
+                    addresses_to_resolve.push(handle.address.clone());
+                }
+            }
+        }
+
+        if !addresses_to_resolve.is_empty() {
+            // Load all contacts once and build a lookup
+            // This is more efficient than per-address queries when there are many unresolved handles
+            let all_contacts = list_contacts(conn)?;
+            let mut contact_by_address: HashMap<String, Contact> = HashMap::new();
+
+            for contact in &all_contacts {
+                // Index by normalized phone numbers
+                for phone in contact.phone_list() {
+                    let normalized = crate::models::contact::normalize_address(&phone);
+                    contact_by_address.insert(normalized, contact.clone());
+                }
+                // Index by lowercase trimmed email
+                for email in contact.email_list() {
+                    let lower = email.trim().to_lowercase();
+                    contact_by_address.insert(lower.clone(), contact.clone());
+                    // Also index without mailto: prefix if present
+                    if let Some(stripped) = lower.strip_prefix("mailto:") {
+                        contact_by_address.insert(stripped.to_string(), contact.clone());
+                    }
+                }
+            }
+
+            // Now resolve unresolved handles
+            for &(chat_id, idx) in &unresolved {
+                if let Some(handles) = map.get_mut(&chat_id) {
+                    if let Some(handle) = handles.get_mut(idx) {
+                        let addr = handle.address.trim();
+                        let is_email = addr.contains('@');
+
+                        if is_email {
+                            // For email handles, try direct lowercase match first
+                            let lower = addr.to_lowercase();
+                            if let Some(contact) = contact_by_address.get(&lower) {
+                                handle.contact = Some(Box::new(contact.clone()));
+                            } else {
+                                // Try stripping mailto: prefix
+                                let stripped = lower.strip_prefix("mailto:").unwrap_or(&lower);
+                                if let Some(contact) = contact_by_address.get(stripped) {
+                                    handle.contact = Some(Box::new(contact.clone()));
+                                }
+                            }
+                        } else {
+                            // For phone handles, try normalized digit match
+                            let normalized = crate::models::contact::normalize_address(addr);
+                            if let Some(contact) = contact_by_address.get(&normalized) {
+                                handle.contact = Some(Box::new(contact.clone()));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(map)
 }
 
 /// List chats ordered by latest message date (simple version without join).

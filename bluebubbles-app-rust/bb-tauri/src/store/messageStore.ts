@@ -4,6 +4,7 @@
 import { create } from "zustand";
 import type { Message } from "@/hooks/useTauri";
 import { tauriGetMessages, tauriSendMessage } from "@/hooks/useTauri";
+import { useChatStore } from "./chatStore";
 
 interface MessageState {
   messages: Message[];
@@ -82,6 +83,13 @@ export const useMessageStore = create<MessageState>((set, get) => ({
       set({
         messages: [msg, ...messages],
         sending: false,
+      });
+
+      // Update sidebar chat preview with the newly sent message
+      useChatStore.getState().updateChatPreview(chatGuid, {
+        text: msg.text,
+        date_created: msg.date_created,
+        is_from_me: true,
       });
     } catch (err) {
       set({

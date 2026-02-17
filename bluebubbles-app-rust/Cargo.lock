@@ -359,6 +359,7 @@ dependencies = [
 name = "bb-models"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "bb-core",
  "chrono",
  "r2d2",
@@ -419,6 +420,7 @@ name = "bb-tauri"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "base64 0.22.1",
  "bb-api",
  "bb-core",
  "bb-models",

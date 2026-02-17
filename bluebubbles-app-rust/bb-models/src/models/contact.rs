@@ -58,14 +58,55 @@ impl Contact {
             .map(|v| v.to_string())
             .unwrap_or_else(|| "[]".to_string());
 
+        // Build structured_name from firstName/lastName if not provided directly
+        let structured_name = map.get("structuredName").map(|v| v.to_string())
+            .or_else(|| {
+                let first = map.get("firstName").and_then(|v| v.as_str()).unwrap_or("");
+                let last = map.get("lastName").and_then(|v| v.as_str()).unwrap_or("");
+                if !first.is_empty() || !last.is_empty() {
+                    Some(serde_json::json!({
+                        "givenName": first,
+                        "familyName": last
+                    }).to_string())
+                } else {
+                    None
+                }
+            });
+
+        // Parse avatar from base64 if present.
+        // The server may return: raw base64, data URI ("data:image/...;base64,..."), or null.
+        let avatar = map.get("avatar")
+            .and_then(|v| v.as_str())
+            .and_then(|s| {
+                if s.is_empty() { return None; }
+                use base64::Engine;
+                // Strip data URI prefix if present (e.g. "data:image/jpeg;base64,...")
+                let b64 = if let Some(idx) = s.find(";base64,") {
+                    &s[idx + 8..]
+                } else if s.starts_with("data:") {
+                    // Malformed data URI - skip
+                    return None;
+                } else {
+                    s
+                };
+                base64::engine::general_purpose::STANDARD.decode(b64).ok()
+                    .or_else(|| {
+                        // Try URL-safe base64 as fallback
+                        base64::engine::general_purpose::STANDARD
+                            .decode(b64.replace('-', "+").replace('_', "/"))
+                            .ok()
+                    })
+            })
+            .filter(|data| !data.is_empty());
+
         Ok(Self {
             id: None,
             external_id: map.get("id").and_then(|v| v.as_str()).map(String::from),
             display_name,
             phones,
             emails,
-            avatar: None,
-            structured_name: map.get("structuredName").map(|v| v.to_string()),
+            avatar,
+            structured_name,
         })
     }
 

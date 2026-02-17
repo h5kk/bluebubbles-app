@@ -142,6 +142,17 @@ enum Commands {
         #[command(subcommand)]
         action: commands::backup::BackupAction,
     },
+    /// Test and manage Private API features (typing indicators, tapbacks, etc).
+    #[command(name = "private-api")]
+    PrivateApi {
+        #[command(subcommand)]
+        action: commands::private_api::PrivateApiAction,
+    },
+    /// Diagnostic commands for troubleshooting avatar sync and missing chats.
+    Diagnose {
+        #[command(subcommand)]
+        action: commands::diagnose::DiagnoseAction,
+    },
 }
 
 #[tokio::main]
@@ -218,6 +229,12 @@ async fn main() -> BbResult<()> {
         }
         Commands::Backup { action } => {
             commands::backup::run(config_handle, action, cli.format).await
+        }
+        Commands::PrivateApi { action } => {
+            commands::private_api::run(config_handle, action, cli.format).await
+        }
+        Commands::Diagnose { action } => {
+            commands::diagnose::run(config_handle, action, cli.format).await
         }
     }
 }

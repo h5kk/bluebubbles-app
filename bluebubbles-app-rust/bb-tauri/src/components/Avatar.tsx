@@ -1,28 +1,37 @@
 /**
- * Avatar component with gradient backgrounds, initials fallback, and group layout.
- * Matches the spec from 07-shared-components.md section 1.
+ * Avatar component styled after macOS Messages / iOS contacts.
+ * Shows a person silhouette by default, with photo and initials as alternatives.
+ * Loads contact avatars from the contact store (bulk-loaded) with a fallback
+ * to individual IPC calls for addresses not yet in the store.
  */
-import { useMemo, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useContactStore } from "@/store/contactStore";
+import { tauriGetContactAvatar } from "@/hooks/useTauri";
 
-/** 7 deterministic gradient palettes from spec 01. */
-const AVATAR_PALETTES = [
-  ["#FD678D", "#FF8AA8"], // Pink
-  ["#6BCFF6", "#94DDFD"], // Blue
-  ["#FEA21C", "#FEB854"], // Orange
-  ["#5EDE79", "#8DE798"], // Green
-  ["#FFCA1C", "#FCD752"], // Yellow
-  ["#FF534D", "#FD726A"], // Red
-  ["#A78DF3", "#BCABFC"], // Purple
-];
+// Fallback cache for addresses resolved via individual IPC (before store is loaded)
+const fallbackCache = new Map<string, string | null>();
 
-const GRAY_PALETTE = ["#928E8E", "#686868"];
-
-function hashAddress(address: string): number {
-  let total = 0;
-  for (let i = 0; i < address.length; i++) {
-    total += address.charCodeAt(i);
-  }
-  return total % 7;
+/** Simple person silhouette SVG (head circle + shoulder arc), macOS Messages style. */
+function PersonSilhouette({ size }: { size: number }) {
+  const iconSize = size * 0.6;
+  return (
+    <svg
+      width={iconSize}
+      height={iconSize}
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      {/* Head */}
+      <circle cx="12" cy="8.5" r="4.5" fill="rgba(255,255,255,0.85)" />
+      {/* Shoulders */}
+      <path
+        d="M3.5 22c0-4.7 3.8-8.5 8.5-8.5s8.5 3.8 8.5 8.5"
+        fill="rgba(255,255,255,0.85)"
+      />
+    </svg>
+  );
 }
 
 function getInitials(name: string, full = false): string {
@@ -40,8 +49,9 @@ interface AvatarProps {
   name?: string;
   address?: string;
   size?: number;
-  colorful?: boolean;
   avatarUrl?: string;
+  /** When true, show initials instead of the person silhouette as the no-photo fallback. */
+  showInitials?: boolean;
   style?: CSSProperties;
 }
 
@@ -49,17 +59,73 @@ export function Avatar({
   name = "?",
   address = "",
   size = 40,
-  colorful = true,
-  avatarUrl,
+  avatarUrl: providedAvatarUrl,
+  showInitials = false,
   style,
 }: AvatarProps) {
-  const palette = useMemo(() => {
-    if (!colorful) return GRAY_PALETTE;
-    const seed = hashAddress(address || name);
-    return AVATAR_PALETTES[seed] ?? AVATAR_PALETTES[0];
-  }, [address, name, colorful]);
+  // Read from the bulk-loaded contact store
+  const storeAvatar = useContactStore((s) => s.getAvatar(address));
+  const storeLoaded = useContactStore((s) => s.loaded);
 
-  const initials = useMemo(() => getInitials(name, true), [name]);
+  const [fallbackAvatar, setFallbackAvatar] = useState<string | null>(
+    fallbackCache.get(address) ?? null
+  );
+  const [imgFailed, setImgFailed] = useState(false);
+
+  // Fallback: if store is loaded but has no avatar for this address,
+  // and we have not tried individual fetch yet, try one IPC call.
+  // This handles edge cases where the store's address normalization
+  // did not match but the Rust-side matching would.
+  useEffect(() => {
+    if (providedAvatarUrl || !address) return;
+    // If the store already has an avatar, no need for fallback
+    if (storeAvatar) return;
+    // If store has not loaded yet, wait for it
+    if (!storeLoaded) return;
+    // If we already tried fallback for this address, skip
+    if (fallbackCache.has(address)) {
+      setFallbackAvatar(fallbackCache.get(address) ?? null);
+      return;
+    }
+
+    let cancelled = false;
+    tauriGetContactAvatar(address)
+      .then((dataUri) => {
+        if (!cancelled) {
+          fallbackCache.set(address, dataUri);
+          setFallbackAvatar(dataUri);
+        }
+      })
+      .catch(() => {
+        fallbackCache.set(address, null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [address, providedAvatarUrl, storeAvatar, storeLoaded]);
+
+  const avatarUrl = providedAvatarUrl || storeAvatar || fallbackAvatar;
+  const initials = useMemo(() => getInitials(name, !showInitials), [name, showInitials]);
+  const showImage = avatarUrl && !imgFailed;
+
+  // Debug: log avatar resolution for first few renders
+  useEffect(() => {
+    if (address && !providedAvatarUrl) {
+      console.debug(`[Avatar] "${name}" addr="${address}" storeLoaded=${storeLoaded} storeAvatar=${!!storeAvatar} fallback=${!!fallbackAvatar} showImage=${!!showImage}`);
+    }
+  }, [address, storeLoaded, storeAvatar, fallbackAvatar, showImage]);
+
+  // macOS Messages style muted gray-blue gradient
+  // Uses CSS variables for theme awareness with fallbacks
+  const silhouetteBg = "linear-gradient(180deg, var(--avatar-bg-from, #A8B5C8), var(--avatar-bg-to, #8E9BB0))";
+  const initialsBg = "linear-gradient(180deg, #6B7DB3, #5A6A9E)";
+
+  const background = showImage
+    ? "transparent"
+    : showInitials
+      ? initialsBg
+      : silhouetteBg;
 
   const containerStyle: CSSProperties = {
     width: size,
@@ -71,11 +137,11 @@ export function Avatar({
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
-    background: avatarUrl
-      ? "transparent"
-      : `linear-gradient(135deg, ${palette[0]}, ${palette[1]})`,
+    background,
+    boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.08)",
+    border: showImage ? "1px solid rgba(0,0,0,0.1)" : "none",
     color: "#FFFFFF",
-    fontSize: size * 0.4,
+    fontSize: size * 0.38,
     fontWeight: 600,
     letterSpacing: "0.5px",
     userSelect: "none",
@@ -83,12 +149,13 @@ export function Avatar({
     ...style,
   };
 
-  if (avatarUrl) {
+  if (showImage) {
     return (
       <div style={containerStyle}>
         <img
           src={avatarUrl}
           alt={name}
+          onError={() => setImgFailed(true)}
           style={{
             width: "100%",
             height: "100%",
@@ -100,21 +167,24 @@ export function Avatar({
     );
   }
 
-  return <div style={containerStyle}>{initials}</div>;
+  if (showInitials) {
+    return <div style={containerStyle}>{initials}</div>;
+  }
+
+  return (
+    <div style={containerStyle}>
+      <PersonSilhouette size={size} />
+    </div>
+  );
 }
 
 /** Group avatar showing multiple participants. */
 interface GroupAvatarProps {
   participants: Array<{ name: string; address: string; avatarUrl?: string }>;
   size?: number;
-  colorful?: boolean;
 }
 
-export function GroupAvatar({
-  participants,
-  size = 40,
-  colorful = true,
-}: GroupAvatarProps) {
+export function GroupAvatar({ participants, size = 40 }: GroupAvatarProps) {
   const display = participants.slice(0, 4);
   const innerSize = display.length <= 2 ? size * 0.55 : size * 0.45;
 
@@ -134,6 +204,7 @@ export function GroupAvatar({
         justifyContent: "center",
         gap: 1,
         background: "var(--color-surface-variant)",
+        boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.08)",
       }}
     >
       {display.map((p, i) => (
@@ -143,7 +214,7 @@ export function GroupAvatar({
           address={p.address}
           avatarUrl={p.avatarUrl}
           size={innerSize}
-          colorful={colorful}
+          showInitials
         />
       ))}
     </div>

@@ -1,11 +1,11 @@
 /**
- * ConversationTile component for the chat list.
- * Implements the tile layout from spec 02-conversation-list.md section 4.
+ * ConversationTile component - macOS Messages style.
+ * Clean tile with rounded corners, blue selection highlight, no dividers.
  */
-import { useCallback, useState, type CSSProperties } from "react";
-import { motion } from "framer-motion";
+import { useCallback, useState, memo, type CSSProperties } from "react";
 import { Avatar, GroupAvatar } from "./Avatar";
 import type { ChatWithPreview } from "@/hooks/useTauri";
+import { parseBBDate } from "@/utils/dateUtils";
 
 interface ConversationTileProps {
   chat: ChatWithPreview;
@@ -14,7 +14,7 @@ interface ConversationTileProps {
   onContextMenu?: (guid: string, event: React.MouseEvent) => void;
 }
 
-export function ConversationTile({
+export const ConversationTile = memo(function ConversationTile({
   chat,
   isActive = false,
   onClick,
@@ -29,11 +29,10 @@ export function ConversationTile({
     chat.participant_names.join(", ") ||
     chatData.chat_identifier ||
     "Unknown";
-  const preview = chat.latest_message_text ?? "";
+  const preview = chat.latest_message_text
+    || (chat.latest_message_date ? "\uD83D\uDCCE Attachment" : "");
   const isUnread = chatData.has_unread_message;
-  const isPinned = chatData.is_pinned;
   const isMuted = chatData.mute_type != null;
-  const isImessage = !chatData.guid.startsWith("SMS");
 
   const handleClick = useCallback(() => {
     onClick?.(chatData.guid);
@@ -50,32 +49,49 @@ export function ConversationTile({
   const tileStyle: CSSProperties = {
     display: "flex",
     alignItems: "center",
-    gap: 12,
-    padding: "10px 16px",
+    gap: 10,
+    padding: "8px 10px",
     cursor: "pointer",
-    borderRadius: 0,
-    transition: "background-color 100ms ease",
+    borderRadius: 10,
+    transition: "background-color 100ms ease, transform 80ms ease",
     backgroundColor: isActive
-      ? "var(--color-primary-container)"
+      ? "#007AFF"
       : isHovered
         ? "var(--color-surface-variant)"
         : "transparent",
-    borderBottom: "1px solid var(--color-surface-variant)",
     position: "relative",
+    marginBottom: 1,
   };
 
+  const titleColor = isActive ? "#FFFFFF" : "var(--color-on-surface)";
+  const subtitleColor = isActive ? "rgba(255,255,255,0.75)" : "var(--color-on-surface-variant)";
+  const timeColor = isActive ? "rgba(255,255,255,0.6)" : "var(--color-outline)";
+
   return (
-    <motion.div
+    <div
+      className="conversation-tile"
       style={tileStyle}
       onClick={handleClick}
       onContextMenu={handleContextMenu}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      whileTap={{ scale: 0.98 }}
       role="button"
       tabIndex={0}
       aria-label={`${title}, ${preview}`}
     >
+      {/* Unread dot - left of avatar */}
+      {isUnread && (
+        <div
+          style={{
+            width: 8,
+            height: 8,
+            borderRadius: "50%",
+            backgroundColor: isActive ? "#FFFFFF" : "#007AFF",
+            flexShrink: 0,
+          }}
+        />
+      )}
+
       {/* Avatar */}
       {isGroup ? (
         <GroupAvatar
@@ -83,13 +99,13 @@ export function ConversationTile({
             name: chat.participant_names[i] ?? p.address,
             address: p.address,
           }))}
-          size={48}
+          size={44}
         />
       ) : (
         <Avatar
           name={title}
           address={chatData.participants[0]?.address ?? chatData.guid}
-          size={48}
+          size={44}
         />
       )}
 
@@ -115,8 +131,8 @@ export function ConversationTile({
           <span
             style={{
               fontSize: "var(--font-body-large)",
-              fontWeight: isUnread ? 700 : 400,
-              color: "var(--color-on-surface)",
+              fontWeight: isUnread ? 600 : 400,
+              color: titleColor,
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
@@ -128,7 +144,7 @@ export function ConversationTile({
           <span
             style={{
               fontSize: "var(--font-body-small)",
-              color: "var(--color-outline)",
+              color: timeColor,
               whiteSpace: "nowrap",
               flexShrink: 0,
             }}
@@ -149,7 +165,7 @@ export function ConversationTile({
           <span
             style={{
               fontSize: "var(--font-body-medium)",
-              color: "var(--color-on-surface-variant)",
+              color: subtitleColor,
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
@@ -160,40 +176,24 @@ export function ConversationTile({
             {preview}
           </span>
 
-          {/* Status indicators */}
-          <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
-            {isUnread && (
-              <div
-                style={{
-                  width: 10,
-                  height: 10,
-                  borderRadius: "50%",
-                  backgroundColor: "var(--color-primary)",
-                }}
-              />
-            )}
-            {isPinned && (
-              <span style={{ fontSize: 12, color: "var(--color-outline)" }}>
-                \uD83D\uDCCC
-              </span>
-            )}
-            {isMuted && (
-              <span style={{ fontSize: 12, color: "var(--color-outline)" }}>
-                \uD83D\uDD15
-              </span>
-            )}
-          </div>
+          {/* Muted indicator */}
+          {isMuted && !isActive && (
+            <span style={{ fontSize: 11, color: "var(--color-outline)", flexShrink: 0 }}>
+              {"\uD83D\uDD15"}
+            </span>
+          )}
         </div>
       </div>
-    </motion.div>
+    </div>
   );
-}
+});
 
 function formatRelativeTime(dateStr: string | null): string {
   if (!dateStr) return "";
   try {
-    const ts = Number(dateStr);
-    const date = isNaN(ts) ? new Date(dateStr) : new Date(ts);
+    const date = parseBBDate(dateStr);
+    if (!date) return "";
+
     const now = new Date();
     const diff = now.getTime() - date.getTime();
 

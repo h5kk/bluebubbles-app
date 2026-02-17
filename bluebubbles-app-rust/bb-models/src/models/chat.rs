@@ -62,7 +62,9 @@ impl Chat {
                 .or_else(|| map.get("originalROWID").and_then(|v| v.as_i64())),
             guid,
             chat_identifier: map.get("chatIdentifier").and_then(|v| v.as_str()).map(String::from),
-            display_name: map.get("displayName").and_then(|v| v.as_str()).map(String::from),
+            display_name: map.get("displayName").and_then(|v| v.as_str()).and_then(|s| {
+                if s.is_empty() { None } else { Some(String::from(s)) }
+            }),
             is_archived: map.get("isArchived").and_then(|v| v.as_bool()).unwrap_or(false),
             mute_type: map.get("muteType").and_then(|v| v.as_str()).map(String::from),
             mute_args: map.get("muteArgs").and_then(|v| v.as_str()).map(String::from),
@@ -73,7 +75,18 @@ impl Chat {
             auto_send_typing_indicators: map.get("autoSendTypingIndicators").and_then(|v| v.as_bool()),
             text_field_text: None,
             text_field_attachments: "[]".to_string(),
-            latest_message_date: map.get("lastMessageDate").and_then(|v| v.as_str()).map(String::from),
+            latest_message_date: map.get("lastMessageDate").and_then(|v| v.as_str()).map(String::from)
+                .or_else(|| {
+                    // Server sends lastMessage as a full message object; extract dateCreated
+                    map.get("lastMessage")
+                        .and_then(|lm| lm.get("dateCreated"))
+                        .and_then(|v| v.as_i64())
+                        .map(|ts| ts.to_string())
+                })
+                .or_else(|| {
+                    // Also try direct numeric lastMessageDate
+                    map.get("lastMessageDate").and_then(|v| v.as_i64()).map(|ts| ts.to_string())
+                }),
             date_deleted: map.get("dateDeleted").and_then(|v| v.as_str()).map(String::from),
             style: map.get("style").and_then(|v| v.as_i64()).map(|v| v as i32),
             lock_chat_name: false,

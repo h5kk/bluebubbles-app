@@ -1,0 +1,41 @@
+# Rust build artifacts
+target/
+**/*.rs.bk
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Environment
+.env
+.env.*
+
+# Tauri
+bb-tauri/src-tauri/target/
+bb-tauri/src-tauri/WixTools/
+bb-tauri/src-tauri/icons/
+
+# Test/debug data
+tools/api_*.json
+
+# Build
+*.exe
+*.dll
+*.pdb

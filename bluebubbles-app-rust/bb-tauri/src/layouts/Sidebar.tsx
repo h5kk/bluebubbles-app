@@ -1,14 +1,15 @@
 /**
- * Sidebar layout component.
+ * Sidebar layout component - macOS Messages style.
  * Contains the conversation list, search, and navigation controls.
- * Implements the sidebar from spec 02-conversation-list.md.
  */
-import { useCallback, useState, type CSSProperties } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useState, useEffect, useRef, useCallback, type CSSProperties } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { SearchBar } from "@/components/SearchBar";
+import { LoadingLine } from "@/components/LoadingLine";
 import { useChatStore } from "@/store/chatStore";
 import { useConnectionStore } from "@/store/connectionStore";
+import { tauriSyncFull, tauriSyncMessages } from "@/hooks/useTauri";
 
 interface SidebarProps {
   width?: number;
@@ -17,15 +18,9 @@ interface SidebarProps {
 
 export function Sidebar({ width = 340, children }: SidebarProps) {
   const navigate = useNavigate();
-  const location = useLocation();
-  const { searchQuery, setSearchQuery } = useChatStore();
+  const { searchQuery, setSearchQuery, refreshChats, isRefreshing, lastRefreshTime } = useChatStore();
   const { status } = useConnectionStore();
-  const [showSearch, setShowSearch] = useState(false);
-
-  const isActive = useCallback(
-    (path: string) => location.pathname.startsWith(path),
-    [location.pathname]
-  );
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const sidebarStyle: CSSProperties = {
     width,
@@ -36,100 +31,114 @@ export function Sidebar({ width = 340, children }: SidebarProps) {
     backgroundColor: "var(--color-background)",
     borderRight: "1px solid var(--color-surface-variant)",
     overflow: "hidden",
+    borderTopRightRadius: 10,
+    borderBottomRightRadius: 10,
   };
 
-  const headerStyle: CSSProperties = {
+  const topRowStyle: CSSProperties = {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    padding: "12px 16px",
-    flexShrink: 0,
-  };
-
-  const navStyle: CSSProperties = {
-    display: "flex",
-    gap: 4,
-    padding: "0 8px 8px",
+    padding: "10px 16px 6px",
     flexShrink: 0,
   };
 
   return (
-    <div style={sidebarStyle}>
-      {/* Header */}
-      <div style={headerStyle}>
-        <h1
-          style={{
-            fontSize: "var(--font-title-large)",
-            fontWeight: 700,
-            color: "var(--color-on-surface)",
-          }}
+    <div style={sidebarStyle} className="glass-panel">
+      {/* Top row: hamburger left, refresh + compose right */}
+      <div style={topRowStyle}>
+        <SidebarIconButton
+          label="Menu"
+          onClick={() => setMenuOpen((o) => !o)}
         >
-          Messages
-        </h1>
+          {/* Hamburger icon - 3 horizontal lines */}
+          <svg width="18" height="14" viewBox="0 0 18 14" fill="none">
+            <rect y="0" width="18" height="2" rx="1" fill="currentColor" />
+            <rect y="6" width="18" height="2" rx="1" fill="currentColor" />
+            <rect y="12" width="18" height="2" rx="1" fill="currentColor" />
+          </svg>
+        </SidebarIconButton>
 
-        <div style={{ display: "flex", gap: 4 }}>
-          {/* Search toggle */}
-          <HeaderButton
-            label="Search"
-            onClick={() => setShowSearch((s) => !s)}
-            active={showSearch}
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <RefreshButton
+            isRefreshing={isRefreshing}
+            lastRefreshTime={lastRefreshTime}
+            onRefresh={refreshChats}
+          />
+
+          <SidebarIconButton
+            label="New message"
+            onClick={() => navigate("/new")}
           >
-            {"\uD83D\uDD0D"}
-          </HeaderButton>
-
-          {/* New message */}
-          <HeaderButton label="New message" onClick={() => navigate("/new")}>
-            {"\u270F\uFE0F"}
-          </HeaderButton>
+            {/* Compose icon - square with pencil */}
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <rect x="1" y="3" width="12" height="14" rx="2" stroke="currentColor" strokeWidth="1.6" fill="none" />
+              <path d="M9 3L15.5 0.5L17.5 2.5L11 9L8.5 9.5L9 7Z" fill="currentColor" />
+            </svg>
+          </SidebarIconButton>
         </div>
       </div>
 
-      {/* Search bar */}
-      <AnimatePresence>
-        {showSearch && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            style={{ overflow: "hidden", flexShrink: 0 }}
-          >
-            <SearchBar
-              value={searchQuery}
-              onChange={setSearchQuery}
-              placeholder="Search conversations"
-              autoFocus
-            />
-            <div style={{ height: 8 }} />
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Dropdown menu */}
+      {menuOpen && (
+        <div
+          className="glass-panel-elevated"
+          style={{
+            position: "absolute",
+            top: 44,
+            left: 8,
+            zIndex: 100,
+            background: "var(--color-surface)",
+            borderRadius: 12,
+            boxShadow: "0 4px 20px rgba(0,0,0,0.18)",
+            padding: "4px 0",
+            minWidth: 180,
+          }}
+        >
+          <MenuDropdownItem
+            label="Chats"
+            onClick={() => { navigate("/"); setMenuOpen(false); }}
+          />
+          <MenuDropdownItem
+            label="Settings"
+            onClick={() => { navigate("/settings"); setMenuOpen(false); }}
+          />
+          <MenuDropdownItem
+            label="Find My"
+            onClick={() => { navigate("/findmy"); setMenuOpen(false); }}
+          />
+        </div>
+      )}
+      {menuOpen && (
+        <div
+          onClick={() => setMenuOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 99,
+          }}
+        />
+      )}
 
-      {/* Navigation tabs */}
-      <div style={navStyle}>
-        <NavTab
-          label="Chats"
-          active={isActive("/chat") || location.pathname === "/"}
-          onClick={() => navigate("/")}
-        />
-        <NavTab
-          label="Settings"
-          active={isActive("/settings")}
-          onClick={() => navigate("/settings")}
-        />
-        <NavTab
-          label="Find My"
-          active={isActive("/findmy")}
-          onClick={() => navigate("/findmy")}
+      {/* Always-visible search bar */}
+      <div style={{ padding: "4px 12px 8px", flexShrink: 0 }}>
+        <SearchBar
+          value={searchQuery}
+          onChange={setSearchQuery}
+          placeholder="Search"
         />
       </div>
 
-      {/* Connection indicator */}
+      {/* Blue loading progress line */}
+      <LoadingLine visible={isRefreshing} />
+
+      {/* Connection indicator - subtle */}
       {status !== "connected" && (
         <div
+          onClick={() => navigate("/settings?panel=server")}
           style={{
-            padding: "6px 16px",
-            fontSize: "var(--font-label-small)",
+            padding: "4px 16px",
+            fontSize: 11,
             color:
               status === "connecting"
                 ? "var(--color-tertiary)"
@@ -140,6 +149,8 @@ export function Sidebar({ width = 340, children }: SidebarProps) {
                 : "var(--color-error-container)",
             textAlign: "center",
             flexShrink: 0,
+            cursor: "pointer",
+            opacity: 0.85,
           }}
         >
           {status === "connecting"
@@ -164,50 +175,268 @@ export function Sidebar({ width = 340, children }: SidebarProps) {
   );
 }
 
-interface NavTabProps {
-  label: string;
-  active: boolean;
-  onClick: () => void;
+/* ---- Refresh Button ---- */
+
+interface RefreshButtonProps {
+  isRefreshing: boolean;
+  lastRefreshTime: number | null;
+  onRefresh: () => Promise<void>;
 }
 
-function NavTab({ label, active, onClick }: NavTabProps) {
+function RefreshButton({ isRefreshing, lastRefreshTime, onRefresh }: RefreshButtonProps) {
   const [hovered, setHovered] = useState(false);
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  const [secondsAgo, setSecondsAgo] = useState<number | null>(null);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isLongPressRef = useRef(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
-  const style: CSSProperties = {
-    padding: "6px 14px",
-    borderRadius: 16,
-    fontSize: "var(--font-label-large)",
-    fontWeight: active ? 600 : 400,
-    color: active ? "var(--color-on-primary)" : "var(--color-on-surface-variant)",
-    backgroundColor: active
-      ? "var(--color-primary)"
-      : hovered
-        ? "var(--color-surface-variant)"
-        : "transparent",
-    transition: "all 150ms ease",
-    cursor: "pointer",
+  const { refreshChats } = useChatStore();
+
+  // Update "Xs ago" every second
+  useEffect(() => {
+    if (lastRefreshTime === null) {
+      setSecondsAgo(null);
+      return;
+    }
+
+    const update = () => {
+      const diff = Math.floor((Date.now() - lastRefreshTime) / 1000);
+      setSecondsAgo(diff);
+    };
+
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, [lastRefreshTime]);
+
+  // Long press handling
+  const handleMouseDown = useCallback(() => {
+    isLongPressRef.current = false;
+    longPressTimerRef.current = setTimeout(() => {
+      isLongPressRef.current = true;
+      setPopoverOpen(true);
+    }, 300);
+  }, []);
+
+  const handleMouseUp = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    // If it was a short click (not long press), do quick refresh
+    if (!isLongPressRef.current && !isRefreshing) {
+      onRefresh();
+    }
+  }, [isRefreshing, onRefresh]);
+
+  const handleMouseLeave = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    setHovered(false);
+  }, []);
+
+  // Popover actions
+  const handleQuickRefresh = useCallback(async () => {
+    setPopoverOpen(false);
+    await refreshChats();
+  }, [refreshChats]);
+
+  const handleFullResync = useCallback(async () => {
+    setPopoverOpen(false);
+    try {
+      await tauriSyncFull();
+    } catch {
+      // sync error handled silently
+    }
+    await refreshChats();
+  }, [refreshChats]);
+
+  const handleSyncMessages = useCallback(async () => {
+    setPopoverOpen(false);
+    try {
+      await tauriSyncMessages(25);
+    } catch {
+      // sync error handled silently
+    }
+    await refreshChats();
+  }, [refreshChats]);
+
+  const formatTimeAgo = (secs: number): string => {
+    if (secs < 60) return `${secs}s ago`;
+    const mins = Math.floor(secs / 60);
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    return `${hrs}h ago`;
   };
 
   return (
+    <div style={{ position: "relative" }}>
+      <button
+        ref={buttonRef}
+        onMouseDown={handleMouseDown}
+        onMouseUp={handleMouseUp}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={handleMouseLeave}
+        aria-label="Refresh"
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 1,
+          padding: "2px 6px",
+          borderRadius: 6,
+          backgroundColor: hovered ? "var(--color-surface-variant)" : "transparent",
+          color: isRefreshing ? "#007AFF" : "var(--color-on-surface-variant)",
+          cursor: "pointer",
+          transition: "background-color 100ms ease",
+          minWidth: 36,
+          height: 36,
+          userSelect: "none",
+        }}
+      >
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 16 16"
+          fill="none"
+          style={{ display: "block" }}
+        >
+          {/* Circular arrow refresh icon */}
+          <path
+            d="M13.5 8A5.5 5.5 0 1 1 8 2.5"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            fill="none"
+          />
+          <path
+            d="M8 0.5L10.5 2.5L8 4.5"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            fill="none"
+          />
+        </svg>
+
+        {secondsAgo !== null && (
+          <span
+            style={{
+              fontSize: 10,
+              lineHeight: 1,
+              color: "var(--color-on-surface-variant)",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {formatTimeAgo(secondsAgo)}
+          </span>
+        )}
+      </button>
+
+      {/* Long press popover */}
+      <AnimatePresence>
+        {popoverOpen && (
+          <>
+            {/* Backdrop to close popover */}
+            <div
+              onClick={() => setPopoverOpen(false)}
+              style={{
+                position: "fixed",
+                inset: 0,
+                zIndex: 199,
+              }}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92, y: -4 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: -4 }}
+              transition={{ duration: 0.15 }}
+              style={{
+                position: "absolute",
+                top: "100%",
+                right: 0,
+                marginTop: 6,
+                zIndex: 200,
+                background: "var(--color-surface)",
+                borderRadius: 12,
+                boxShadow: "0 4px 20px rgba(0,0,0,0.18)",
+                padding: "4px 0",
+                minWidth: 180,
+                overflow: "hidden",
+              }}
+            >
+              <PopoverItem
+                label="Quick Refresh"
+                sublabel="Refresh chat list"
+                onClick={handleQuickRefresh}
+              />
+              <PopoverItem
+                label="Full Re-sync"
+                sublabel="Re-sync all data from server"
+                onClick={handleFullResync}
+              />
+              <PopoverItem
+                label="Sync Messages"
+                sublabel="Sync recent messages"
+                onClick={handleSyncMessages}
+              />
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+/* ---- Popover Item ---- */
+
+interface PopoverItemProps {
+  label: string;
+  sublabel: string;
+  onClick: () => void;
+}
+
+function PopoverItem({ label, sublabel, onClick }: PopoverItemProps) {
+  const [hovered, setHovered] = useState(false);
+
+  return (
     <button
-      style={style}
       onClick={onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      style={{
+        display: "block",
+        width: "100%",
+        textAlign: "left",
+        padding: "8px 14px",
+        cursor: "pointer",
+        backgroundColor: hovered ? "var(--color-surface-variant)" : "transparent",
+        transition: "background-color 80ms ease",
+      }}
     >
-      {label}
+      <div style={{ fontSize: 13, fontWeight: 500, color: "var(--color-on-surface)" }}>
+        {label}
+      </div>
+      <div style={{ fontSize: 11, color: "var(--color-outline)", marginTop: 1 }}>
+        {sublabel}
+      </div>
     </button>
   );
 }
 
-interface HeaderButtonProps {
+/* ---- Internal components ---- */
+
+interface SidebarIconButtonProps {
   children: React.ReactNode;
   label: string;
   onClick: () => void;
-  active?: boolean;
 }
 
-function HeaderButton({ children, label, onClick, active = false }: HeaderButtonProps) {
+function SidebarIconButton({ children, label, onClick }: SidebarIconButtonProps) {
   const [hovered, setHovered] = useState(false);
 
   return (
@@ -217,23 +446,49 @@ function HeaderButton({ children, label, onClick, active = false }: HeaderButton
       onMouseLeave={() => setHovered(false)}
       aria-label={label}
       style={{
-        width: 32,
-        height: 32,
-        borderRadius: "50%",
+        width: 30,
+        height: 30,
+        borderRadius: 6,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        fontSize: 14,
-        backgroundColor: active
-          ? "var(--color-primary-container)"
-          : hovered
-            ? "var(--color-surface-variant)"
-            : "transparent",
+        color: "var(--color-on-surface-variant)",
+        backgroundColor: hovered ? "var(--color-surface-variant)" : "transparent",
         transition: "background-color 100ms ease",
         cursor: "pointer",
       }}
     >
       {children}
+    </button>
+  );
+}
+
+interface MenuDropdownItemProps {
+  label: string;
+  onClick: () => void;
+}
+
+function MenuDropdownItem({ label, onClick }: MenuDropdownItemProps) {
+  const [hovered, setHovered] = useState(false);
+
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: "block",
+        width: "100%",
+        textAlign: "left",
+        padding: "8px 16px",
+        fontSize: 13,
+        color: "var(--color-on-surface)",
+        backgroundColor: hovered ? "var(--color-surface-variant)" : "transparent",
+        cursor: "pointer",
+        transition: "background-color 80ms ease",
+      }}
+    >
+      {label}
     </button>
   );
 }

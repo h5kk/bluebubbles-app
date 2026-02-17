@@ -28,8 +28,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   loaded: false,
   themeMode: "system",
   selectedLightTheme: "Bright White",
-  selectedDarkTheme: "OLED Dark",
-  skin: "material",
+  selectedDarkTheme: "Blue Dark",
+  skin: "ios",
   tabletMode: true,
   colorfulAvatars: true,
   colorfulBubbles: false,
@@ -42,9 +42,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         settings,
         loaded: true,
         selectedLightTheme: settings["selected-light"] ?? "Bright White",
-        selectedDarkTheme: settings["selected-dark"] ?? "OLED Dark",
-        skin: (settings["skin"] as "ios" | "material" | "samsung") ?? "material",
-        tabletMode: settings["tabletMode"] === "true",
+        selectedDarkTheme: settings["selected-dark"] ?? "Blue Dark",
+        themeMode: (settings["themeMode"] as ThemeMode) ?? "system",
+        skin: (settings["skin"] as "ios" | "material" | "samsung") ?? "ios",
+        tabletMode: settings["tabletMode"] !== "false",
         colorfulAvatars: settings["colorfulAvatars"] !== "false",
         colorfulBubbles: settings["colorfulBubbles"] === "true",
         sendWithReturn: settings["sendWithReturn"] === "true",
@@ -56,7 +57,17 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   updateSetting: async (key: string, value: string) => {
     const { settings } = get();
-    set({ settings: { ...settings, [key]: value } });
+    const updated: Partial<SettingsState> = { settings: { ...settings, [key]: value } };
+
+    // Sync derived state for keys that have dedicated state fields
+    if (key === "selected-light") updated.selectedLightTheme = value;
+    if (key === "selected-dark") updated.selectedDarkTheme = value;
+    if (key === "tabletMode") updated.tabletMode = value === "true";
+    if (key === "colorfulAvatars") updated.colorfulAvatars = value !== "false";
+    if (key === "colorfulBubbles") updated.colorfulBubbles = value === "true";
+    if (key === "sendWithReturn") updated.sendWithReturn = value === "true";
+
+    set(updated);
 
     try {
       await tauriUpdateSetting(key, value);
@@ -67,6 +78,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   setThemeMode: (mode: ThemeMode) => {
     set({ themeMode: mode });
+    get().updateSetting("themeMode", mode);
   },
 
   setSkin: (skin: "ios" | "material" | "samsung") => {

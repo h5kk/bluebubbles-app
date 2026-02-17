@@ -1,6 +1,6 @@
 /**
- * ConversationView page - displays messages for a specific chat.
- * Implements spec 03-conversation-view.md.
+ * ConversationView page - macOS Messages style.
+ * Centered header with avatar/name, FaceTime button, bubble tails.
  */
 import {
   useEffect,
@@ -10,15 +10,18 @@ import {
   type CSSProperties,
 } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
 import { useMessageStore } from "@/store/messageStore";
 import { useChatStore } from "@/store/chatStore";
 import { useSettingsStore } from "@/store/settingsStore";
+import { useConnectionStore } from "@/store/connectionStore";
 import { MessageBubble } from "@/components/MessageBubble";
 import { InputBar } from "@/components/InputBar";
 import { Avatar, GroupAvatar } from "@/components/Avatar";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { LoadingLine } from "@/components/LoadingLine";
 import type { Message } from "@/hooks/useTauri";
+import { tauriSendTypingIndicator } from "@/hooks/useTauri";
+import { parseBBDateMs } from "@/utils/dateUtils";
 
 export function ConversationView() {
   const { chatGuid } = useParams<{ chatGuid: string }>();
@@ -34,10 +37,19 @@ export function ConversationView() {
     loadOlder,
     sendMessage,
   } = useMessageStore();
-  const { chats, selectChat } = useChatStore();
-  const { sendWithReturn } = useSettingsStore();
+  const { chats, selectChat, markChatRead } = useChatStore();
+  const { sendWithReturn, settings } = useSettingsStore();
+  const { serverInfo } = useConnectionStore();
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isTypingRef = useRef(false);
+
+  // Check if typing indicators should be sent
+  const shouldSendTyping =
+    settings["privateSendTyping"] !== "false" &&
+    settings["enablePrivateAPI"] === "true" &&
+    serverInfo?.private_api === true;
 
   // Find the chat data for the header
   const chatPreview = useMemo(
@@ -58,13 +70,14 @@ export function ConversationView() {
     );
   }, [chatPreview, chatData, decodedGuid]);
 
-  // Load messages when chat changes
+  // Load messages when chat changes and mark as read
   useEffect(() => {
     if (decodedGuid) {
       selectChat(decodedGuid);
       loadMessages(decodedGuid);
+      markChatRead(decodedGuid);
     }
-  }, [decodedGuid, selectChat, loadMessages]);
+  }, [decodedGuid, selectChat, loadMessages, markChatRead]);
 
   // Scroll to bottom when new messages arrive
   useEffect(() => {
@@ -83,12 +96,64 @@ export function ConversationView() {
     }
   }, [loading, hasMore, loadOlder]);
 
+  // Typing indicator handler - sends start/stop typing to server
+  const handleTypingChange = useCallback(
+    (isTyping: boolean) => {
+      if (!shouldSendTyping || !decodedGuid) return;
+
+      if (isTyping && !isTypingRef.current) {
+        isTypingRef.current = true;
+        tauriSendTypingIndicator(decodedGuid, "start").catch(() => {});
+      }
+
+      // Clear any existing timeout
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+
+      if (isTyping) {
+        // Auto-stop typing after 5 seconds of no input
+        typingTimeoutRef.current = setTimeout(() => {
+          if (isTypingRef.current && decodedGuid) {
+            isTypingRef.current = false;
+            tauriSendTypingIndicator(decodedGuid, "stop").catch(() => {});
+          }
+        }, 5000);
+      } else {
+        isTypingRef.current = false;
+        tauriSendTypingIndicator(decodedGuid, "stop").catch(() => {});
+      }
+    },
+    [shouldSendTyping, decodedGuid]
+  );
+
+  // Stop typing indicator when navigating away
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      if (isTypingRef.current && decodedGuid) {
+        tauriSendTypingIndicator(decodedGuid, "stop").catch(() => {});
+        isTypingRef.current = false;
+      }
+    };
+  }, [decodedGuid]);
+
   // Send handler
   const handleSend = useCallback(
     (text: string) => {
+      // Stop typing indicator when sending
+      if (isTypingRef.current && decodedGuid) {
+        isTypingRef.current = false;
+        tauriSendTypingIndicator(decodedGuid, "stop").catch(() => {});
+      }
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
       sendMessage(text);
     },
-    [sendMessage]
+    [sendMessage, decodedGuid]
   );
 
   // Group messages by sender for bubble grouping
@@ -97,14 +162,18 @@ export function ConversationView() {
       const prev = idx < messages.length - 1 ? messages[idx + 1] : null;
       const next = idx > 0 ? messages[idx - 1] : null;
 
-      // Messages are newest-first in the store, but we render oldest-first
-      // so "previous" in display order is messages[idx+1]
+      // Group events (item_type != 0) always break grouping
+      const isGroupEvent = msg.item_type !== 0;
+      const prevIsGroupEvent = prev != null && prev.item_type !== 0;
+      const nextIsGroupEvent = next != null && next.item_type !== 0;
+
       const sameSenderAsPrev =
+        !isGroupEvent && !prevIsGroupEvent &&
         prev != null && prev.is_from_me === msg.is_from_me && prev.handle_id === msg.handle_id;
       const sameSenderAsNext =
+        !isGroupEvent && !nextIsGroupEvent &&
         next != null && next.is_from_me === msg.is_from_me && next.handle_id === msg.handle_id;
 
-      // Show timestamp if gap > 15 minutes from previous
       let showTimestamp = false;
       if (prev && msg.date_created && prev.date_created) {
         const currTime = parseDate(msg.date_created);
@@ -115,15 +184,32 @@ export function ConversationView() {
       }
       if (!prev) showTimestamp = true;
 
+      // Check if the next (newer) message would show a timestamp break,
+      // which means the current message is the last in its visual group
+      let nextHasTimestampBreak = false;
+      if (next && next.date_created && msg.date_created) {
+        const nextTime = parseDate(next.date_created);
+        const currTime = parseDate(msg.date_created);
+        if (nextTime && currTime && nextTime - currTime > 15 * 60 * 1000) {
+          nextHasTimestampBreak = true;
+        }
+      }
+
       return {
         message: msg,
         isFirstInGroup: !sameSenderAsPrev || showTimestamp,
-        isLastInGroup: !sameSenderAsNext,
+        isLastInGroup: !sameSenderAsNext || nextHasTimestampBreak,
         showTimestamp,
         senderName: getSenderName(msg, chatPreview),
       };
     });
   }, [messages, chatPreview]);
+
+  // Memoize the reversed array to avoid allocating a new copy on every render
+  const reversedMessages = useMemo(
+    () => [...groupedMessages].reverse(),
+    [groupedMessages]
+  );
 
   const containerStyle: CSSProperties = {
     display: "flex",
@@ -135,12 +221,13 @@ export function ConversationView() {
   const headerStyle: CSSProperties = {
     display: "flex",
     alignItems: "center",
-    gap: 12,
+    justifyContent: "center",
     padding: "10px 16px",
     borderBottom: "1px solid var(--color-surface-variant)",
     backgroundColor: "var(--color-surface)",
     flexShrink: 0,
-    cursor: "pointer",
+    position: "relative",
+    minHeight: 56,
   };
 
   // Empty state when no chat is selected
@@ -157,7 +244,12 @@ export function ConversationView() {
           color: "var(--color-on-surface-variant)",
         }}
       >
-        <span style={{ fontSize: 48 }}>{"\uD83D\uDCAC"}</span>
+        <span style={{ fontSize: 48, opacity: 0.4 }}>
+          {/* Chat bubble icon */}
+          <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+            <path d="M8 10C8 7.79 9.79 6 12 6H36C38.21 6 40 7.79 40 10V30C40 32.21 38.21 34 36 34H16L8 42V10Z" fill="currentColor" opacity="0.3"/>
+          </svg>
+        </span>
         <span style={{ fontSize: "var(--font-title-large)", fontWeight: 500 }}>
           Select a conversation
         </span>
@@ -170,45 +262,63 @@ export function ConversationView() {
 
   return (
     <div style={containerStyle}>
-      {/* Chat header */}
+      {/* Chat header - centered avatar and name */}
       <div
         style={headerStyle}
         onClick={() =>
           navigate(`/chat/${encodeURIComponent(decodedGuid)}/details`)
         }
       >
-        {chatData && isGroup ? (
-          <GroupAvatar
-            participants={chatData.participants.map((p, i) => ({
-              name: chatPreview?.participant_names[i] ?? p.address,
-              address: p.address,
-            }))}
-            size={36}
-          />
-        ) : (
-          <Avatar
-            name={title}
-            address={chatData?.participants[0]?.address ?? decodedGuid}
-            size={36}
-          />
-        )}
-        <div style={{ flex: 1, minWidth: 0 }}>
+        {/* Center content: avatar + name */}
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 2,
+            cursor: "pointer",
+          }}
+        >
+          {chatData && isGroup ? (
+            <GroupAvatar
+              participants={chatData.participants.map((p, i) => ({
+                name: chatPreview?.participant_names[i] ?? p.address,
+                address: p.address,
+              }))}
+              size={32}
+            />
+          ) : (
+            <Avatar
+              name={title}
+              address={chatData?.participants[0]?.address ?? decodedGuid}
+              size={32}
+            />
+          )}
           <div
             style={{
-              fontSize: "var(--font-body-large)",
-              fontWeight: 600,
-              color: "var(--color-on-surface)",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
             }}
           >
-            {title}
+            <span
+              style={{
+                fontSize: 13,
+                fontWeight: 600,
+                color: "var(--color-on-surface)",
+              }}
+            >
+              {title}
+            </span>
+            {/* Chevron */}
+            <svg width="8" height="12" viewBox="0 0 8 12" fill="none" style={{ opacity: 0.4 }}>
+              <path d="M1.5 1L6.5 6L1.5 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </div>
           {chatData && (
-            <div
+            <span
               style={{
-                fontSize: "var(--font-label-small)",
+                fontSize: 11,
                 color: "var(--color-outline)",
               }}
             >
@@ -217,9 +327,41 @@ export function ConversationView() {
                 : isImessage
                   ? "iMessage"
                   : "SMS"}
-            </div>
+            </span>
           )}
+          {/* Blue progress line under contact photo when sending */}
+          <LoadingLine
+            visible={sending}
+            height={2}
+            style={{ borderRadius: 1, marginTop: 2, width: 40 }}
+          />
         </div>
+
+        {/* FaceTime / Video call button - top right */}
+        <button
+          aria-label="FaceTime"
+          style={{
+            position: "absolute",
+            right: 16,
+            top: "50%",
+            transform: "translateY(-50%)",
+            width: 32,
+            height: 32,
+            borderRadius: 6,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "var(--color-on-surface-variant)",
+            background: "transparent",
+            cursor: "pointer",
+          }}
+        >
+          {/* Video camera icon */}
+          <svg width="20" height="16" viewBox="0 0 20 16" fill="none">
+            <rect x="1" y="2" width="13" height="12" rx="2" stroke="currentColor" strokeWidth="1.5" fill="none" />
+            <path d="M14 6L19 3V13L14 10V6Z" fill="currentColor" />
+          </svg>
+        </button>
       </div>
 
       {/* Messages area */}
@@ -247,8 +389,8 @@ export function ConversationView() {
           </div>
         )}
 
-        {/* Messages rendered oldest-first (reversed from store order) */}
-        {[...groupedMessages].reverse().map((item) => (
+        {/* Messages rendered oldest-first (reversed view is memoized in groupedMessages) */}
+        {reversedMessages.map((item) => (
           <MessageBubble
             key={item.message.guid ?? item.message.id}
             message={item.message}
@@ -277,9 +419,8 @@ export function ConversationView() {
 
         {/* No messages */}
         {!loading && messages.length === 0 && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
+          <div
+            className="animate-fade-in"
             style={{
               flex: 1,
               display: "flex",
@@ -290,13 +431,14 @@ export function ConversationView() {
             }}
           >
             No messages yet. Say hello!
-          </motion.div>
+          </div>
         )}
       </div>
 
       {/* Input bar */}
       <InputBar
         onSend={handleSend}
+        onTyping={handleTypingChange}
         sending={sending}
         sendWithReturn={sendWithReturn}
         placeholder={isImessage ? "iMessage" : "Text Message"}
@@ -306,13 +448,7 @@ export function ConversationView() {
 }
 
 function parseDate(dateStr: string): number | null {
-  try {
-    const ts = Number(dateStr);
-    if (!isNaN(ts)) return ts;
-    return new Date(dateStr).getTime();
-  } catch {
-    return null;
-  }
+  return parseBBDateMs(dateStr);
 }
 
 function getSenderName(

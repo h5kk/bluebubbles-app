@@ -2,7 +2,7 @@
 
 :root {
   /* ─── Color Tokens (Material 3 ColorScheme) ───────────────────────── */
-  --color-primary: #1982FC;
+  --color-primary: #2C6BED;
   --color-on-primary: #FFFFFF;
   --color-primary-container: #D4E3FF;
   --color-on-primary-container: #001C3A;
@@ -31,7 +31,7 @@
   --color-inverse-primary: #A5C8FF;
 
   /* ─── Bubble Color Tokens ─────────────────────────────────────────── */
-  --bubble-imessage-sent: #1982FC;
+  --bubble-imessage-sent: #2C6BED;
   --bubble-imessage-on-sent: #FFFFFF;
   --bubble-sms-sent: #43CC47;
   --bubble-sms-on-sent: #FFFFFF;
@@ -69,6 +69,8 @@
   --avatar-size: 40px;
   --avatar-border: 2px;
   --avatar-scale: 1;
+  --avatar-bg-from: #A8B5C8;
+  --avatar-bg-to: #8E9BB0;
 
   /* ─── Layout Tokens ───────────────────────────────────────────────── */
   --sidebar-width: 380px;
@@ -103,6 +105,293 @@
   --z-modal: 400;
   --z-toast: 500;
   --z-titlebar: 600;
+}
+
+/* ─── Dark Theme: OLED Dark ──────────────────────────────────────────── */
+[data-theme="oled-dark"] {
+  --color-primary: #A5C8FF;
+  --color-on-primary: #003062;
+  --color-primary-container: #00468A;
+  --color-on-primary-container: #D4E3FF;
+  --color-secondary: #BBC7DB;
+  --color-on-secondary: #263141;
+  --color-secondary-container: #3C4858;
+  --color-on-secondary-container: #D9E3F8;
+  --color-tertiary: #D8BDE4;
+  --color-on-tertiary: #3C2946;
+  --color-tertiary-container: #54405D;
+  --color-on-tertiary-container: #F8D8FE;
+  --color-error: #FFB4AB;
+  --color-on-error: #690005;
+  --color-error-container: #93000A;
+  --color-on-error-container: #FFDAD6;
+  --color-background: #000000;
+  --color-on-background: #E3E2E6;
+  --color-surface: #000000;
+  --color-on-surface: #E3E2E6;
+  --color-surface-variant: #1A1A1A;
+  --color-on-surface-variant: #C4C6CF;
+  --color-outline: #8E9099;
+  --color-shadow: rgba(0, 0, 0, 0.4);
+  --color-inverse-surface: #E3E2E6;
+  --color-on-inverse-surface: #2F3033;
+  --color-inverse-primary: #7BA5F5;
+  --bubble-received: #262626;
+  --bubble-on-received: #E3E2E6;
+}
+
+/* ─── Dark Theme: Blue Dark ──────────────────────────────────────────── */
+[data-theme="blue-dark"] {
+  --color-primary: #A5C8FF;
+  --color-on-primary: #003062;
+  --color-primary-container: #00468A;
+  --color-on-primary-container: #D4E3FF;
+  --color-secondary: #BBC7DB;
+  --color-on-secondary: #263141;
+  --color-secondary-container: #3C4858;
+  --color-on-secondary-container: #D9E3F8;
+  --color-tertiary: #D8BDE4;
+  --color-on-tertiary: #3C2946;
+  --color-tertiary-container: #54405D;
+  --color-on-tertiary-container: #F8D8FE;
+  --color-error: #FFB4AB;
+  --color-on-error: #690005;
+  --color-error-container: #93000A;
+  --color-on-error-container: #FFDAD6;
+  --color-background: #0D1B2A;
+  --color-on-background: #E0E2E8;
+  --color-surface: #0D1B2A;
+  --color-on-surface: #E0E2E8;
+  --color-surface-variant: #1B2A3B;
+  --color-on-surface-variant: #BFC6D0;
+  --color-outline: #8A9099;
+  --color-shadow: rgba(0, 0, 0, 0.4);
+  --bubble-received: #1B2A3B;
+  --bubble-on-received: #E0E2E8;
+}
+
+/* ─── Dark Theme: Indigo Dark ────────────────────────────────────────── */
+[data-theme="indigo-dark"] {
+  --color-primary: #B0C6FF;
+  --color-on-primary: #002D6E;
+  --color-primary-container: #17458F;
+  --color-on-primary-container: #D9E2FF;
+  --color-secondary: #C0C6DC;
+  --color-on-secondary: #2A3042;
+  --color-secondary-container: #404659;
+  --color-on-secondary-container: #DCE2F9;
+  --color-error: #FFB4AB;
+  --color-on-error: #690005;
+  --color-error-container: #93000A;
+  --color-on-error-container: #FFDAD6;
+  --color-background: #111327;
+  --color-on-background: #E2E1EC;
+  --color-surface: #111327;
+  --color-on-surface: #E2E1EC;
+  --color-surface-variant: #1E2038;
+  --color-on-surface-variant: #C5C5D3;
+  --color-outline: #8F909D;
+  --bubble-received: #1E2038;
+  --bubble-on-received: #E2E1EC;
+}
+
+/* ─── Dark Theme: Nord ───────────────────────────────────────────────── */
+[data-theme="nord"] {
+  --color-primary: #88C0D0;
+  --color-on-primary: #2E3440;
+  --color-primary-container: #3B4252;
+  --color-on-primary-container: #88C0D0;
+  --color-secondary: #81A1C1;
+  --color-on-secondary: #2E3440;
+  --color-secondary-container: #3B4252;
+  --color-on-secondary-container: #81A1C1;
+  --color-tertiary: #B48EAD;
+  --color-on-tertiary: #2E3440;
+  --color-tertiary-container: #3B4252;
+  --color-on-tertiary-container: #B48EAD;
+  --color-error: #BF616A;
+  --color-on-error: #2E3440;
+  --color-error-container: #3B4252;
+  --color-on-error-container: #BF616A;
+  --color-background: #2E3440;
+  --color-on-background: #ECEFF4;
+  --color-surface: #2E3440;
+  --color-on-surface: #ECEFF4;
+  --color-surface-variant: #3B4252;
+  --color-on-surface-variant: #D8DEE9;
+  --color-outline: #7B88A1;
+  --bubble-imessage-sent: #5E81AC;
+  --bubble-imessage-on-sent: #ECEFF4;
+  --bubble-sms-sent: #A3BE8C;
+  --bubble-sms-on-sent: #2E3440;
+  --bubble-received: #3B4252;
+  --bubble-on-received: #ECEFF4;
+}
+
+/* ─── Dark Theme: Green Dark ─────────────────────────────────────────── */
+[data-theme="green-dark"] {
+  --color-primary: #82DB82;
+  --color-on-primary: #003A00;
+  --color-primary-container: #005300;
+  --color-on-primary-container: #9EF89E;
+  --color-secondary: #B5CCB5;
+  --color-on-secondary: #213521;
+  --color-secondary-container: #374B37;
+  --color-on-secondary-container: #D1E8D1;
+  --color-error: #FFB4AB;
+  --color-on-error: #690005;
+  --color-error-container: #93000A;
+  --color-on-error-container: #FFDAD6;
+  --color-background: #0A140A;
+  --color-on-background: #DEE4DE;
+  --color-surface: #0A140A;
+  --color-on-surface: #DEE4DE;
+  --color-surface-variant: #1A261A;
+  --color-on-surface-variant: #BFC9BF;
+  --color-outline: #8A938A;
+  --bubble-received: #1A261A;
+  --bubble-on-received: #DEE4DE;
+}
+
+/* ─── Dark Theme: Purple Dark ────────────────────────────────────────── */
+[data-theme="purple-dark"] {
+  --color-primary: #D4BBFF;
+  --color-on-primary: #3F0090;
+  --color-primary-container: #5B14AA;
+  --color-on-primary-container: #ECDCFF;
+  --color-secondary: #CCC2DC;
+  --color-on-secondary: #332D41;
+  --color-secondary-container: #4A4458;
+  --color-on-secondary-container: #E8DEF8;
+  --color-error: #FFB4AB;
+  --color-on-error: #690005;
+  --color-error-container: #93000A;
+  --color-on-error-container: #FFDAD6;
+  --color-background: #120E1A;
+  --color-on-background: #E6E0EC;
+  --color-surface: #120E1A;
+  --color-on-surface: #E6E0EC;
+  --color-surface-variant: #211C2B;
+  --color-on-surface-variant: #CBC4D4;
+  --color-outline: #958E9E;
+  --bubble-received: #211C2B;
+  --bubble-on-received: #E6E0EC;
+}
+
+/* ─── Light Theme: Blue Light ────────────────────────────────────────── */
+[data-theme="blue-light"] {
+  --color-primary: #1565C0;
+  --color-on-primary: #FFFFFF;
+  --color-primary-container: #D0E4FF;
+  --color-on-primary-container: #001D36;
+  --color-background: #F5F9FF;
+  --color-on-background: #1A1C1E;
+  --color-surface: #F5F9FF;
+  --color-on-surface: #1A1C1E;
+  --color-surface-variant: #E3EBF5;
+  --color-on-surface-variant: #43474E;
+  --color-outline: #74777F;
+}
+
+/* ─── Light Theme: Pink Light ────────────────────────────────────────── */
+[data-theme="pink-light"] {
+  --color-primary: #D81B60;
+  --color-on-primary: #FFFFFF;
+  --color-primary-container: #FFD9E2;
+  --color-on-primary-container: #3E001E;
+  --color-background: #FFF8F9;
+  --color-on-background: #1A1C1E;
+  --color-surface: #FFF8F9;
+  --color-on-surface: #1A1C1E;
+  --color-surface-variant: #F5E3E8;
+  --color-on-surface-variant: #43474E;
+  --color-outline: #74777F;
+  --bubble-imessage-sent: #D81B60;
+}
+
+/* ─── Light Theme: Liquid Glass Light ───────────────────────────────────── */
+/* iOS 26 Liquid Glass: frosted translucent panels with backdrop blur */
+[data-theme="liquid-glass-light"] {
+  --color-primary: #007AFF;
+  --color-on-primary: #FFFFFF;
+  --color-primary-container: rgba(0, 122, 255, 0.10);
+  --color-on-primary-container: #003A80;
+  --color-secondary: #555F71;
+  --color-on-secondary: #FFFFFF;
+  --color-secondary-container: rgba(85, 95, 113, 0.08);
+  --color-on-secondary-container: #121C2B;
+  --color-error: #FF3B30;
+  --color-on-error: #FFFFFF;
+  --color-error-container: #FFDAD6;
+  --color-on-error-container: #410002;
+  --color-background: rgba(242, 242, 247, 0.72);
+  --color-on-background: #1C1C1E;
+  --color-surface: rgba(255, 255, 255, 0.70);
+  --color-on-surface: #1C1C1E;
+  --color-surface-variant: rgba(120, 120, 128, 0.12);
+  --color-on-surface-variant: #3C3C43;
+  --color-outline: rgba(60, 60, 67, 0.29);
+  --color-shadow: rgba(0, 0, 0, 0.04);
+  --color-inverse-surface: #2C2C2E;
+  --color-on-inverse-surface: #F2F2F7;
+  --color-inverse-primary: #64B5F6;
+  --bubble-imessage-sent: #007AFF;
+  --bubble-imessage-on-sent: #FFFFFF;
+  --bubble-sms-sent: #34C759;
+  --bubble-sms-on-sent: #FFFFFF;
+  --bubble-received: rgba(0, 0, 0, 0.05);
+  --bubble-on-received: #000000;
+
+  /* Liquid glass tokens */
+  --glass-bg: rgba(255, 255, 255, 0.70);
+  --glass-bg-elevated: rgba(255, 255, 255, 0.82);
+  --glass-border: rgba(255, 255, 255, 0.18);
+  --glass-border-subtle: rgba(0, 0, 0, 0.06);
+  --glass-blur: 16px;
+  --glass-shadow: 0 2px 20px rgba(0, 0, 0, 0.06);
+  --glass-shadow-elevated: 0 8px 32px rgba(0, 0, 0, 0.10);
+}
+
+/* ─── Dark Theme: Liquid Glass Dark ────────────────────────────────────── */
+[data-theme="liquid-glass-dark"] {
+  --color-primary: #0A84FF;
+  --color-on-primary: #FFFFFF;
+  --color-primary-container: rgba(10, 132, 255, 0.18);
+  --color-on-primary-container: #B8D0FF;
+  --color-secondary: #8E8E93;
+  --color-on-secondary: #FFFFFF;
+  --color-secondary-container: rgba(142, 142, 147, 0.18);
+  --color-on-secondary-container: #D9E3F8;
+  --color-error: #FF453A;
+  --color-on-error: #FFFFFF;
+  --color-error-container: #93000A;
+  --color-on-error-container: #FFDAD6;
+  --color-background: rgba(0, 0, 0, 0.72);
+  --color-on-background: #F5F5F7;
+  --color-surface: rgba(44, 44, 46, 0.65);
+  --color-on-surface: #F5F5F7;
+  --color-surface-variant: rgba(56, 56, 58, 0.50);
+  --color-on-surface-variant: #EBEBF5;
+  --color-outline: rgba(84, 84, 88, 0.65);
+  --color-shadow: rgba(0, 0, 0, 0.32);
+  --color-inverse-surface: #F5F5F7;
+  --color-on-inverse-surface: #1C1C1E;
+  --color-inverse-primary: #0A84FF;
+  --bubble-imessage-sent: #0A84FF;
+  --bubble-imessage-on-sent: #FFFFFF;
+  --bubble-sms-sent: #30D158;
+  --bubble-sms-on-sent: #FFFFFF;
+  --bubble-received: rgba(255, 255, 255, 0.08);
+  --bubble-on-received: #F5F5F7;
+
+  /* Liquid glass tokens */
+  --glass-bg: rgba(30, 30, 32, 0.65);
+  --glass-bg-elevated: rgba(44, 44, 46, 0.78);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-border-subtle: rgba(255, 255, 255, 0.04);
+  --glass-blur: 20px;
+  --glass-shadow: 0 2px 20px rgba(0, 0, 0, 0.20);
+  --glass-shadow-elevated: 0 8px 32px rgba(0, 0, 0, 0.36);
 }
 
 /* ─── Base Reset ────────────────────────────────────────────────────────── */
@@ -182,4 +471,45 @@ input, textarea {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-on-surface-variant);
+}
+
+/* ─── Liquid Glass Utility Classes ─────────────────────────────────────── */
+/* Apply these classes to panels/cards/sidebars when liquid-glass theme is active */
+
+[data-theme="liquid-glass-light"] .glass-panel,
+[data-theme="liquid-glass-dark"] .glass-panel {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+[data-theme="liquid-glass-light"] .glass-panel-elevated,
+[data-theme="liquid-glass-dark"] .glass-panel-elevated {
+  background: var(--glass-bg-elevated);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow-elevated);
+}
+
+[data-theme="liquid-glass-light"] .glass-surface,
+[data-theme="liquid-glass-dark"] .glass-surface {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 0.6));
+  backdrop-filter: blur(calc(var(--glass-blur) * 0.6));
+  border: 1px solid var(--glass-border-subtle);
+}
+
+[data-theme="liquid-glass-light"] .glass-input,
+[data-theme="liquid-glass-dark"] .glass-input {
+  background: rgba(120, 120, 128, 0.08);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--glass-border-subtle);
+}
+
+[data-theme="liquid-glass-dark"] .glass-input {
+  background: rgba(120, 120, 128, 0.16);
 }

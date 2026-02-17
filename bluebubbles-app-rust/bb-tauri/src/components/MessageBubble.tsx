@@ -1,10 +1,178 @@
 /**
- * MessageBubble component for individual messages.
- * Implements the bubble styling from spec 03-conversation-view.md section 6.
+ * MessageBubble component - macOS Messages / iOS style.
+ * Features bubble tails on the last message in a group, delivered status.
  */
-import { useMemo, type CSSProperties } from "react";
-import { motion } from "framer-motion";
-import type { Message } from "@/hooks/useTauri";
+import { useMemo, useState, useEffect, useCallback, memo, type CSSProperties } from "react";
+import type { Message, Attachment } from "@/hooks/useTauri";
+import { tauriDownloadAttachment } from "@/hooks/useTauri";
+import { parseBBDate } from "@/utils/dateUtils";
+
+// ─── Attachment rendering ─────────────────────────────────────────────────────
+
+type AttachmentLoadState = "idle" | "loading" | "loaded" | "error";
+
+/** Renders a single image attachment, fetching the data URI via Tauri IPC. */
+const AttachmentImage = memo(function AttachmentImage({
+  attachment,
+  borderRadius,
+}: {
+  attachment: Attachment;
+  borderRadius?: string;
+}) {
+  const [state, setState] = useState<AttachmentLoadState>("idle");
+  const [dataUri, setDataUri] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!attachment.guid) return;
+    let cancelled = false;
+
+    setState("loading");
+    tauriDownloadAttachment(attachment.guid)
+      .then((uri) => {
+        if (!cancelled) {
+          setDataUri(uri);
+          setState("loaded");
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setState("error");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [attachment.guid]);
+
+  // Compute aspect ratio for the placeholder
+  const aspectRatio =
+    attachment.width && attachment.height
+      ? attachment.width / attachment.height
+      : 16 / 9;
+
+  if (state === "loading" || state === "idle") {
+    return (
+      <div
+        style={{
+          width: "100%",
+          maxWidth: "var(--bubble-max-width)",
+          aspectRatio: String(aspectRatio),
+          maxHeight: 320,
+          backgroundColor: "var(--color-surface-variant, #e0e0e0)",
+          borderRadius: borderRadius ?? "12px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          overflow: "hidden",
+        }}
+      >
+        <span
+          style={{
+            fontSize: 13,
+            color: "var(--color-on-surface-variant, #666)",
+            opacity: 0.6,
+          }}
+        >
+          Loading...
+        </span>
+      </div>
+    );
+  }
+
+  if (state === "error" || !dataUri) {
+    return (
+      <span style={{ opacity: 0.7, fontStyle: "italic" }}>
+        {"\uD83D\uDCF7"} {attachment.transfer_name ?? "Image"}
+      </span>
+    );
+  }
+
+  return (
+    <img
+      src={dataUri}
+      alt={attachment.transfer_name ?? "Image attachment"}
+      style={{
+        display: "block",
+        width: "100%",
+        maxWidth: "var(--bubble-max-width)",
+        maxHeight: 400,
+        borderRadius: borderRadius ?? "12px",
+        objectFit: "cover",
+      }}
+      loading="lazy"
+    />
+  );
+});
+
+/** Renders all attachments for a message, stacked vertically. */
+function AttachmentRenderer({
+  attachments,
+  borderRadius,
+}: {
+  attachments: Attachment[];
+  borderRadius?: string;
+}) {
+  if (!attachments || attachments.length === 0) return null;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      {attachments.map((att, idx) => {
+        const mime = att.mime_type ?? "";
+
+        if (mime.startsWith("image/")) {
+          return (
+            <AttachmentImage
+              key={att.guid ?? idx}
+              attachment={att}
+              borderRadius={borderRadius}
+            />
+          );
+        }
+
+        if (mime.startsWith("video/")) {
+          return (
+            <div
+              key={att.guid ?? idx}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                opacity: 0.7,
+                fontStyle: "italic",
+              }}
+            >
+              <span>{"\uD83C\uDFA5"}</span>
+              <span>{att.transfer_name ?? "Video"}</span>
+            </div>
+          );
+        }
+
+        if (mime.startsWith("audio/")) {
+          return (
+            <span
+              key={att.guid ?? idx}
+              style={{ opacity: 0.7, fontStyle: "italic" }}
+            >
+              {"\uD83C\uDFB5"} {att.transfer_name ?? "Audio"}
+            </span>
+          );
+        }
+
+        return (
+          <span
+            key={att.guid ?? idx}
+            style={{ opacity: 0.7, fontStyle: "italic" }}
+          >
+            {"\uD83D\uDCCE"} {att.transfer_name ?? "Attachment"}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── MessageBubble ────────────────────────────────────────────────────────────
 
 interface MessageBubbleProps {
   message: Message;
@@ -16,7 +184,7 @@ interface MessageBubbleProps {
   showTimestamp?: boolean;
 }
 
-export function MessageBubble({
+export const MessageBubble = memo(function MessageBubble({
   message,
   isGroupChat = false,
   senderName,
@@ -26,8 +194,9 @@ export function MessageBubble({
   showTimestamp = false,
 }: MessageBubbleProps) {
   const isSent = message.is_from_me;
-  const isBigEmoji = message.big_emoji === true;
+  const isBigEmoji = message.big_emoji === true || detectBigEmoji(message.text);
   const hasError = message.error !== 0;
+  const isGroupEvent = message.item_type !== 0;
 
   const bubbleColor = useMemo(() => {
     if (!isSent) return "var(--bubble-received)";
@@ -43,22 +212,32 @@ export function MessageBubble({
       : "var(--bubble-sms-on-sent)";
   }, [isSent, isImessage]);
 
-  // Corner radius logic for grouped messages
+  // iOS-style corner radius: 18px default, 4px on the inner continuation side
+  // Sent messages: right side is the "tail side" (inner). top-right is sm when
+  // continuing from a previous message (not first). bottom-right is sm when
+  // continuing into the next message (not last).
+  // Received messages: left side is the "tail side" (inner). Same logic mirrored.
   const borderRadius = useMemo(() => {
-    const large = 20;
-    const small = 5;
+    const lg = 18;
+    const sm = 4;
     if (isSent) {
-      return `${isFirstInGroup ? large : small}px ${isFirstInGroup ? large : small}px ${isLastInGroup ? large : small}px ${large}px`;
+      // order: top-left top-right bottom-right bottom-left
+      const topRight = isFirstInGroup ? lg : sm;
+      const bottomRight = isLastInGroup ? lg : sm;
+      return `${lg}px ${topRight}px ${bottomRight}px ${lg}px`;
     }
-    return `${isFirstInGroup ? large : small}px ${isFirstInGroup ? large : small}px ${large}px ${isLastInGroup ? large : small}px`;
+    // received
+    const topLeft = isFirstInGroup ? lg : sm;
+    const bottomLeft = isLastInGroup ? lg : sm;
+    return `${topLeft}px ${lg}px ${lg}px ${bottomLeft}px`;
   }, [isSent, isFirstInGroup, isLastInGroup]);
 
   const containerStyle: CSSProperties = {
     display: "flex",
     flexDirection: "column",
     alignItems: isSent ? "flex-end" : "flex-start",
-    paddingLeft: isSent ? "20%" : "10px",
-    paddingRight: isSent ? "10px" : "20%",
+    paddingLeft: isSent ? "15%" : "10px",
+    paddingRight: isSent ? "10px" : "15%",
     marginBottom: isLastInGroup ? "8px" : "2px",
   };
 
@@ -75,6 +254,7 @@ export function MessageBubble({
         borderRadius,
         padding: "var(--bubble-padding-v) var(--bubble-padding-h)",
         maxWidth: "var(--bubble-max-width)",
+        minWidth: 44,
         minHeight: "var(--bubble-min-height)",
         fontSize: "var(--font-bubble-text)",
         lineHeight: 1.35,
@@ -88,8 +268,54 @@ export function MessageBubble({
     (m) => m.associated_message_type != null
   );
 
+  // Group events (name changes, participant added/removed) render as centered system messages
+  if (isGroupEvent) {
+    const eventText = message.group_title
+      ? `Group name changed to "${message.group_title}"`
+      : message.text || "Group event";
+    return (
+      <div
+        style={{
+          textAlign: "center",
+          fontSize: "var(--font-body-small)",
+          color: "var(--color-on-surface-variant)",
+          padding: "4px 16px",
+          fontStyle: "italic",
+        }}
+      >
+        {showTimestamp && message.date_created && (
+          <div
+            style={{
+              fontSize: "var(--font-label-small)",
+              color: "var(--color-outline)",
+              padding: "8px 0 4px",
+            }}
+          >
+            {formatTimestamp(message.date_created)}
+          </div>
+        )}
+        {eventText}
+      </div>
+    );
+  }
+
   return (
     <div style={containerStyle}>
+      {/* Timestamp separator */}
+      {showTimestamp && message.date_created && (
+        <div
+          style={{
+            width: "100%",
+            textAlign: "center",
+            fontSize: "var(--font-label-small)",
+            color: "var(--color-outline)",
+            padding: "8px 0 4px",
+          }}
+        >
+          {formatTimestamp(message.date_created)}
+        </div>
+      )}
+
       {/* Sender name for group chats */}
       {isGroupChat && !isSent && isFirstInGroup && senderName && (
         <span
@@ -104,42 +330,79 @@ export function MessageBubble({
         </span>
       )}
 
-      <motion.div
-        style={bubbleStyle}
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.15 }}
-      >
-        {/* Subject line */}
-        {message.subject && (
-          <div
+      {/* Bubble with optional tail */}
+      <div style={{ position: "relative" }}>
+        <div style={bubbleStyle}>
+          {/* Subject line */}
+          {message.subject && (
+            <div
+              style={{
+                fontWeight: 600,
+                marginBottom: 4,
+                fontSize: "var(--font-body-medium)",
+              }}
+            >
+              {message.subject}
+            </div>
+          )}
+
+          {/* Attachments rendered above text */}
+          {message.has_attachments &&
+            message.attachments &&
+            message.attachments.length > 0 && (
+              <AttachmentRenderer
+                attachments={message.attachments}
+                borderRadius={borderRadius}
+              />
+            )}
+
+          {/* Message text */}
+          {message.text
+            ? message.text
+            : !message.has_attachments ||
+                !message.attachments ||
+                message.attachments.length === 0
+              ? ""
+              : null}
+
+          {/* Error indicator */}
+          {hasError && (
+            <span
+              style={{
+                color: "var(--color-error)",
+                fontSize: "var(--font-label-small)",
+                display: "block",
+                marginTop: 4,
+              }}
+            >
+              Failed to send
+            </span>
+          )}
+        </div>
+
+        {/* Bubble tail - only on last message in group */}
+        {isLastInGroup && !isBigEmoji && (
+          <svg
+            width="10"
+            height="16"
+            viewBox="0 0 10 16"
+            fill="none"
             style={{
-              fontWeight: 600,
-              marginBottom: 4,
-              fontSize: "var(--font-body-medium)",
+              position: "absolute",
+              bottom: 0,
+              ...(isSent
+                ? { right: -6 }
+                : { left: -6, transform: "scaleX(-1)" }),
+              pointerEvents: "none",
             }}
           >
-            {message.subject}
-          </div>
+            <path
+              d="M0 16C0 16 0 8 0 0C0 0 0 12 5 15C7 16 10 16 10 16L0 16Z"
+              fill={bubbleColor}
+            />
+          </svg>
         )}
-
-        {/* Message text */}
-        {message.text ?? ""}
-
-        {/* Error indicator */}
-        {hasError && (
-          <span
-            style={{
-              color: "var(--color-error)",
-              fontSize: "var(--font-label-small)",
-              display: "block",
-              marginTop: 4,
-            }}
-          >
-            Failed to send
-          </span>
-        )}
-      </motion.div>
+      </div>
 
       {/* Reactions */}
       {reactions && reactions.length > 0 && (
@@ -169,21 +432,36 @@ export function MessageBubble({
         </div>
       )}
 
-      {/* Timestamp */}
-      {showTimestamp && message.date_created && (
+      {/* Delivered status - only on last sent message in group */}
+      {isSent && isLastInGroup && !hasError && (
         <span
           style={{
-            fontSize: "var(--font-label-small)",
-            color: "var(--color-outline)",
-            marginTop: 2,
-            [isSent ? "marginRight" : "marginLeft"]: 4,
+            fontSize: 13,
+            color: "var(--color-on-surface-variant, #888)",
+            marginTop: 4,
+            marginRight: 4,
           }}
         >
-          {formatTimestamp(message.date_created)}
+          {message.date_delivered
+            ? `Delivered ${formatDeliveredTime(message.date_delivered)}`
+            : message.is_delivered
+              ? "Delivered"
+              : "Sent"}
         </span>
       )}
     </div>
   );
+});
+
+function attachmentLabel(message: Message): string {
+  if (message.attachments && message.attachments.length > 0) {
+    const mime = message.attachments[0].mime_type ?? "";
+    if (mime.startsWith("image/")) return "\uD83D\uDCF7 Image";
+    if (mime.startsWith("video/")) return "\uD83C\uDFA5 Video";
+    if (mime.startsWith("audio/")) return "\uD83C\uDFB5 Audio";
+    return "\uD83D\uDCCE Attachment";
+  }
+  return "\uD83D\uDCCE Attachment";
 }
 
 function getReactionEmoji(type: string | null): string {
@@ -196,15 +474,15 @@ function getReactionEmoji(type: string | null): string {
     question: "\u2753",
   };
   if (!type) return "";
-  // Associated message types may be formatted as "2000" (love) etc
   const normalized = type.toLowerCase().replace(/[^a-z]/g, "");
   return map[normalized] ?? type;
 }
 
 function formatTimestamp(dateStr: string): string {
   try {
-    const ts = Number(dateStr);
-    const date = isNaN(ts) ? new Date(dateStr) : new Date(ts);
+    const date = parseBBDate(dateStr);
+    if (!date) return dateStr;
+
     const now = new Date();
     const diff = now.getTime() - date.getTime();
 
@@ -220,5 +498,39 @@ function formatTimestamp(dateStr: string): string {
     });
   } catch {
     return dateStr;
+  }
+}
+
+/**
+ * Client-side fallback for detecting messages that are only 1-3 emoji.
+ * Used when the server doesn't set big_emoji.
+ */
+function detectBigEmoji(text: string | null): boolean {
+  if (!text) return false;
+  const trimmed = text.trim();
+  if (trimmed.length === 0 || trimmed.length > 20) return false;
+  // Match emoji sequences (including modifiers, ZWJ sequences, keycap, flags)
+  const emojiRegex =
+    /^(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(?:\u200D(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*(?:\s*(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(?:\u200D(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*){0,2}$/u;
+  return emojiRegex.test(trimmed);
+}
+
+function formatDeliveredTime(dateStr: string): string {
+  try {
+    const date = parseBBDate(dateStr);
+    if (!date) return "";
+
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+
+    if (diff < 60000) return "just now";
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+
+    return date.toLocaleTimeString(undefined, {
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  } catch {
+    return "";
   }
 }

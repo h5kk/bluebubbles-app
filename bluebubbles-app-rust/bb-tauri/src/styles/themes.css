@@ -37,6 +37,9 @@
   --bubble-sms-on-sent: #FFFFFF;
   --bubble-received: #323332;
   --bubble-on-received: #FFFFFF;
+
+  --avatar-bg-from: #5A6577;
+  --avatar-bg-to: #4A5568;
 }
 
 /* ─── Bright White (Default Light Theme) ────────────────────────────────── */
@@ -143,6 +146,9 @@
   --bubble-sms-on-sent: #0A3010;
   --bubble-received: #1E2636;
   --bubble-on-received: #D8E2F0;
+
+  --avatar-bg-from: #5A6577;
+  --avatar-bg-to: #4A5568;
 }
 
 /* ─── Indigo Theme (Dark) ───────────────────────────────────────────────── */
@@ -164,6 +170,9 @@
   --bubble-sms-on-sent: #0A3010;
   --bubble-received: #1E2040;
   --bubble-on-received: #D4D5E8;
+
+  --avatar-bg-from: #5A6577;
+  --avatar-bg-to: #4A5568;
 }
 
 /* ─── Pink Theme (Light) ────────────────────────────────────────────────── */
@@ -206,6 +215,9 @@
   --bubble-sms-on-sent: #0A3010;
   --bubble-received: #1E2E1E;
   --bubble-on-received: #D0E8D0;
+
+  --avatar-bg-from: #5A6577;
+  --avatar-bg-to: #4A5568;
 }
 
 /* ─── Purple Theme (Dark) ───────────────────────────────────────────────── */
@@ -227,4 +239,7 @@
   --bubble-sms-on-sent: #0A3010;
   --bubble-received: #28202E;
   --bubble-on-received: #E0D0E8;
+
+  --avatar-bg-from: #5A6577;
+  --avatar-bg-to: #4A5568;
 }

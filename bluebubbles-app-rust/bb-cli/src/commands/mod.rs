@@ -15,6 +15,8 @@ pub mod findmy;
 pub mod facetime;
 pub mod scheduled;
 pub mod backup;
+pub mod private_api;
+pub mod diagnose;
 
 use bb_core::config::ConfigHandle;
 use bb_core::error::BbResult;
@@ -30,8 +32,34 @@ pub async fn init_database(config: &ConfigHandle) -> BbResult<Database> {
 }
 
 /// Helper to create an API client from config.
+/// Falls back to server credentials stored in the SQLite database (from the Tauri app)
+/// when the config file doesn't have a server address.
 pub async fn create_api_client(config: &ConfigHandle) -> BbResult<ApiClient> {
-    let server_config = config.read().await.server.clone();
+    let mut server_config = config.read().await.server.clone();
+
+    // If config doesn't have server address, try reading from SQLite settings
+    // (the Tauri app stores credentials there via the connect command)
+    if server_config.address.is_empty() {
+        if let Ok(db) = init_database(config).await {
+            let conn = db.conn()?;
+            if let Ok(Some(addr)) = bb_models::Settings::get(&conn, bb_models::models::settings::keys::SERVER_ADDRESS) {
+                if !addr.is_empty() {
+                    server_config.address = addr;
+                    if let Ok(Some(key)) = bb_models::Settings::get(&conn, bb_models::models::settings::keys::GUID_AUTH_KEY) {
+                        server_config.guid_auth_key = key;
+                    }
+                    tracing::info!("using server credentials from database: {}", server_config.address);
+                }
+            }
+        }
+    }
+
+    if server_config.address.is_empty() {
+        return Err(bb_core::error::BbError::Config(
+            "no server address configured. use 'bluebubbles connect <address> <password>' first, or connect via the Tauri app".into()
+        ));
+    }
+
     ApiClient::new(&server_config)
 }
 
