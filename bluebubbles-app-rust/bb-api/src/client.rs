@@ -459,6 +459,16 @@ impl ApiClient {
         Self::parse_response(resp).await
     }
 
+    /// Convenience: PUT + parse into ServerResponse<T>.
+    pub async fn put_json<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        body: &serde_json::Value,
+    ) -> BbResult<ServerResponse<T>> {
+        let resp = self.put(path, body).await?;
+        Self::parse_response(resp).await
+    }
+
     /// Check the HTTP status code and convert to BbError if needed.
     async fn check_status(response: Response) -> BbResult<Response> {
         let status = response.status();

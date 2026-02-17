@@ -189,6 +189,19 @@ export async function tauriMarkChatRead(
   return invoke<void>("mark_chat_read", { chatGuid });
 }
 
+export async function tauriMarkChatUnread(
+  chatGuid: string
+): Promise<void> {
+  return invoke<void>("mark_chat_unread", { chatGuid });
+}
+
+export async function tauriUpdateChat(
+  chatGuid: string,
+  updates: Record<string, unknown>
+): Promise<void> {
+  return invoke<void>("update_chat", { chatGuid, updates });
+}
+
 export async function tauriGetMessages(
   chatGuid: string,
   offset: number | null,

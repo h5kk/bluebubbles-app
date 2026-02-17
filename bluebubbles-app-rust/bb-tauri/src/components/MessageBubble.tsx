@@ -2,7 +2,7 @@
  * MessageBubble component - macOS Messages / iOS style.
  * Features bubble tails on the last message in a group, delivered status.
  */
-import { useMemo, useState, useEffect, useCallback, memo, type CSSProperties } from "react";
+import { useMemo, useState, useEffect, memo, type CSSProperties } from "react";
 import type { Message, Attachment } from "@/hooks/useTauri";
 import { tauriDownloadAttachment } from "@/hooks/useTauri";
 import { parseBBDate } from "@/utils/dateUtils";
@@ -232,12 +232,19 @@ export const MessageBubble = memo(function MessageBubble({
     return `${topLeft}px ${lg}px ${lg}px ${bottomLeft}px`;
   }, [isSent, isFirstInGroup, isLastInGroup]);
 
+  // Detect image attachments for edge-to-edge image rendering
+  const hasImageAttachments =
+    message.has_attachments &&
+    message.attachments?.some((a) => a.mime_type?.startsWith("image/"));
+  // When images are present, use zero padding on bubble and wrap text in its own padded div
+  const useImageLayout = !!hasImageAttachments;
+
   const containerStyle: CSSProperties = {
     display: "flex",
     flexDirection: "column",
     alignItems: isSent ? "flex-end" : "flex-start",
-    paddingLeft: isSent ? "15%" : "10px",
-    paddingRight: isSent ? "10px" : "15%",
+    paddingLeft: isSent ? 0 : "10px",
+    paddingRight: isSent ? "10px" : 0,
     marginBottom: isLastInGroup ? "8px" : "2px",
   };
 
@@ -252,15 +259,15 @@ export const MessageBubble = memo(function MessageBubble({
         backgroundColor: bubbleColor,
         color: textColor,
         borderRadius,
-        padding: "var(--bubble-padding-v) var(--bubble-padding-h)",
-        maxWidth: "var(--bubble-max-width)",
+        padding: useImageLayout ? "0" : "var(--bubble-padding-v) var(--bubble-padding-h)",
         minWidth: 44,
-        minHeight: "var(--bubble-min-height)",
+        minHeight: useImageLayout ? 0 : "var(--bubble-min-height)",
         fontSize: "var(--font-bubble-text)",
         lineHeight: 1.35,
         wordBreak: "break-word" as const,
         whiteSpace: "pre-wrap" as const,
         position: "relative" as const,
+        overflow: useImageLayout ? "hidden" : undefined,
       };
 
   // Reactions display
@@ -331,7 +338,7 @@ export const MessageBubble = memo(function MessageBubble({
       )}
 
       {/* Bubble with optional tail */}
-      <div style={{ position: "relative" }}>
+      <div style={{ position: "relative", maxWidth: "var(--bubble-max-width)" }}>
         <div style={bubbleStyle}>
           {/* Subject line */}
           {message.subject && (
@@ -357,13 +364,23 @@ export const MessageBubble = memo(function MessageBubble({
             )}
 
           {/* Message text */}
-          {message.text
-            ? message.text
-            : !message.has_attachments ||
-                !message.attachments ||
-                message.attachments.length === 0
-              ? ""
-              : null}
+          {message.text ? (
+            hasImageAttachments ? (
+              <div
+                style={{
+                  padding: "var(--bubble-padding-v) var(--bubble-padding-h)",
+                }}
+              >
+                {message.text}
+              </div>
+            ) : (
+              message.text
+            )
+          ) : !message.has_attachments ||
+              !message.attachments ||
+              message.attachments.length === 0 ? (
+            ""
+          ) : null}
 
           {/* Error indicator */}
           {hasError && (
@@ -452,17 +469,6 @@ export const MessageBubble = memo(function MessageBubble({
     </div>
   );
 });
-
-function attachmentLabel(message: Message): string {
-  if (message.attachments && message.attachments.length > 0) {
-    const mime = message.attachments[0].mime_type ?? "";
-    if (mime.startsWith("image/")) return "\uD83D\uDCF7 Image";
-    if (mime.startsWith("video/")) return "\uD83C\uDFA5 Video";
-    if (mime.startsWith("audio/")) return "\uD83C\uDFB5 Audio";
-    return "\uD83D\uDCCE Attachment";
-  }
-  return "\uD83D\uDCCE Attachment";
-}
 
 function getReactionEmoji(type: string | null): string {
   const map: Record<string, string> = {

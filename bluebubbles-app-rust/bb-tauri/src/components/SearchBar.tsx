@@ -61,15 +61,31 @@ export function SearchBar({
 
   return (
     <div style={containerStyle}>
-      <span
-        style={{
-          color: "var(--color-outline)",
-          fontSize: 14,
-          flexShrink: 0,
-        }}
+      <svg
+        width="15"
+        height="15"
+        viewBox="0 0 15 15"
+        fill="none"
+        style={{ flexShrink: 0 }}
       >
-        {"\uD83D\uDD0D"}
-      </span>
+        <circle
+          cx="6.5"
+          cy="6.5"
+          r="5"
+          stroke="var(--color-outline)"
+          strokeWidth="1.5"
+          fill="none"
+        />
+        <line
+          x1="10.5"
+          y1="10.5"
+          x2="14"
+          y2="14"
+          stroke="var(--color-outline)"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+        />
+      </svg>
       <input
         type="text"
         value={localValue}

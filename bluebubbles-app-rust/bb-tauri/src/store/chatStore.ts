@@ -3,7 +3,7 @@
  */
 import { create } from "zustand";
 import type { ChatWithPreview } from "@/hooks/useTauri";
-import { tauriGetChats, tauriRefreshChats, tauriMarkChatRead } from "@/hooks/useTauri";
+import { tauriGetChats, tauriRefreshChats, tauriMarkChatRead, tauriMarkChatUnread, tauriUpdateChat } from "@/hooks/useTauri";
 
 interface ChatState {
   chats: ChatWithPreview[];
@@ -27,6 +27,10 @@ interface ChatState {
     message: { text: string | null; date_created: string | null; is_from_me?: boolean }
   ) => void;
   markChatRead: (chatGuid: string) => Promise<void>;
+  markChatUnread: (chatGuid: string) => Promise<void>;
+  togglePin: (chatGuid: string) => Promise<void>;
+  toggleMute: (chatGuid: string) => Promise<void>;
+  archiveChat: (chatGuid: string) => Promise<void>;
 }
 
 const PAGE_SIZE = 200;
@@ -173,6 +177,109 @@ export const useChatStore = create<ChatState>((set, get) => ({
       await tauriMarkChatRead(chatGuid);
     } catch (err) {
       console.error("failed to mark chat as read:", err);
+    }
+  },
+
+  markChatUnread: async (chatGuid: string) => {
+    const { chats } = get();
+    set({
+      chats: chats.map((c) =>
+        c.chat.guid === chatGuid
+          ? { ...c, chat: { ...c.chat, has_unread_message: true } }
+          : c
+      ),
+    });
+    try {
+      await tauriMarkChatUnread(chatGuid);
+    } catch (err) {
+      console.error("failed to mark chat as unread:", err);
+    }
+  },
+
+  togglePin: async (chatGuid: string) => {
+    const { chats } = get();
+    const chat = chats.find((c) => c.chat.guid === chatGuid);
+    if (!chat) return;
+    const newPinned = !chat.chat.is_pinned;
+
+    // Optimistic update
+    set({
+      chats: chats.map((c) =>
+        c.chat.guid === chatGuid
+          ? { ...c, chat: { ...c.chat, is_pinned: newPinned } }
+          : c
+      ),
+    });
+    try {
+      await tauriUpdateChat(chatGuid, { pinned: newPinned });
+    } catch (err) {
+      console.error("failed to toggle pin:", err);
+      // Revert on error
+      const { chats: current } = get();
+      set({
+        chats: current.map((c) =>
+          c.chat.guid === chatGuid
+            ? { ...c, chat: { ...c.chat, is_pinned: !newPinned } }
+            : c
+        ),
+      });
+    }
+  },
+
+  toggleMute: async (chatGuid: string) => {
+    const { chats } = get();
+    const chat = chats.find((c) => c.chat.guid === chatGuid);
+    if (!chat) return;
+    const isMuted = chat.chat.mute_type != null;
+    const newMuteType = isMuted ? null : "mute";
+
+    // Optimistic update
+    set({
+      chats: chats.map((c) =>
+        c.chat.guid === chatGuid
+          ? { ...c, chat: { ...c.chat, mute_type: newMuteType } }
+          : c
+      ),
+    });
+    try {
+      await tauriUpdateChat(chatGuid, { muteType: newMuteType });
+    } catch (err) {
+      console.error("failed to toggle mute:", err);
+      const { chats: current } = get();
+      set({
+        chats: current.map((c) =>
+          c.chat.guid === chatGuid
+            ? { ...c, chat: { ...c.chat, mute_type: isMuted ? chat.chat.mute_type : null } }
+            : c
+        ),
+      });
+    }
+  },
+
+  archiveChat: async (chatGuid: string) => {
+    const { chats } = get();
+    const chat = chats.find((c) => c.chat.guid === chatGuid);
+    if (!chat) return;
+    const newArchived = !chat.chat.is_archived;
+
+    // Optimistic update - remove from list if archiving
+    if (newArchived) {
+      set({ chats: chats.filter((c) => c.chat.guid !== chatGuid) });
+    } else {
+      set({
+        chats: chats.map((c) =>
+          c.chat.guid === chatGuid
+            ? { ...c, chat: { ...c.chat, is_archived: false } }
+            : c
+        ),
+      });
+    }
+    try {
+      await tauriUpdateChat(chatGuid, { isArchived: newArchived });
+    } catch (err) {
+      console.error("failed to archive chat:", err);
+      // Revert - re-fetch chats
+      get().fetchChats();
     }
   },
 }));

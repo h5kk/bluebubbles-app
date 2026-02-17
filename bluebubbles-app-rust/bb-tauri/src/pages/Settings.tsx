@@ -3,7 +3,7 @@
  * Implements spec 04-settings-screens.md.
  */
 import { useState, useCallback, useEffect, type CSSProperties, type ReactNode } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSettingsStore } from "@/store/settingsStore";
 import { useConnectionStore } from "@/store/connectionStore";
@@ -34,6 +34,7 @@ const validPanels: SettingsPanel[] = [
 ];
 
 export function Settings() {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const panelParam = searchParams.get("panel");
   const initialPanel = validPanels.includes(panelParam as SettingsPanel) ? (panelParam as SettingsPanel) : "general";
@@ -81,15 +82,38 @@ export function Settings() {
   return (
     <div style={containerStyle}>
       <div style={headerStyle}>
-        <h1
-          style={{
-            fontSize: "var(--font-title-large)",
-            fontWeight: 700,
-            color: "var(--color-on-surface)",
-          }}
-        >
-          Settings
-        </h1>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <button
+            onClick={() => navigate("/")}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+              padding: "4px 8px 4px 2px",
+              borderRadius: 8,
+              color: "var(--color-primary)",
+              cursor: "pointer",
+              backgroundColor: "transparent",
+              fontSize: "var(--font-body-medium)",
+              fontWeight: 400,
+            }}
+            aria-label="Back to chats"
+          >
+            <svg width="10" height="18" viewBox="0 0 10 18" fill="none">
+              <path d="M9 1L1.5 9L9 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            Back
+          </button>
+          <h1
+            style={{
+              fontSize: "var(--font-title-large)",
+              fontWeight: 700,
+              color: "var(--color-on-surface)",
+            }}
+          >
+            Settings
+          </h1>
+        </div>
       </div>
 
       <div style={bodyStyle}>

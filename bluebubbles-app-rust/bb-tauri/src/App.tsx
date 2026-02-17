@@ -9,6 +9,7 @@ import { useSettingsStore } from "@/store/settingsStore";
 import { tauriCheckSetupComplete, tauriTryAutoConnect, tauriCheckMessagesSynced } from "@/hooks/useTauri";
 import { useConnectionStore } from "@/store/connectionStore";
 import { useContactStore } from "@/store/contactStore";
+import { useChatStore } from "@/store/chatStore";
 import { AppLayout } from "@/layouts/AppLayout";
 import { SetupWizard } from "@/pages/SetupWizard";
 import { ConversationView } from "@/pages/ConversationView";
@@ -26,6 +27,7 @@ export function App() {
   const { loadSettings, loaded: settingsLoaded } = useSettingsStore();
   const { status, setStatus, setServerInfo } = useConnectionStore();
   const { syncAndLoadAvatars, loadAvatars } = useContactStore();
+  const refreshChats = useChatStore((s) => s.refreshChats);
   const [setupComplete, setSetupComplete] = useState<boolean | null>(null);
   const [messagesSynced, setMessagesSynced] = useState<boolean | null>(null);
 
@@ -86,15 +88,22 @@ export function App() {
 
   // Load contact avatars after connection.
   // First load from local DB (instant), then sync from server in background.
+  // After sync completes, refresh chats so participant names get re-resolved
+  // with the now-populated contacts table (contacts are linked to handles
+  // during sync, enabling name resolution via contact_id JOIN).
   useEffect(() => {
     if (status === "connected") {
       // Load cached avatars from local DB immediately
       loadAvatars().then(() => {
         // Then sync fresh avatars from server in background
-        syncAndLoadAvatars();
+        syncAndLoadAvatars().then(() => {
+          // Re-fetch chats so participant_names are re-resolved
+          // now that contacts are saved and linked to handles
+          refreshChats();
+        });
       });
     }
-  }, [status, loadAvatars, syncAndLoadAvatars]);
+  }, [status, loadAvatars, syncAndLoadAvatars, refreshChats]);
 
   // Show loading while checking setup
   if (setupComplete === null || !settingsLoaded) {

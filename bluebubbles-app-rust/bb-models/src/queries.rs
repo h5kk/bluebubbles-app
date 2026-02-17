@@ -241,10 +241,15 @@ fn batch_load_participants_with_contacts(
             let mut contact_by_address: HashMap<String, Contact> = HashMap::new();
 
             for contact in &all_contacts {
-                // Index by normalized phone numbers
+                // Index by normalized phone numbers AND digits-only variants
                 for phone in contact.phone_list() {
                     let normalized = crate::models::contact::normalize_address(&phone);
-                    contact_by_address.insert(normalized, contact.clone());
+                    contact_by_address.insert(normalized.clone(), contact.clone());
+                    // Also index by digits-only (no '+') for cross-format matching
+                    let digits_only: String = phone.chars().filter(|c| c.is_ascii_digit()).collect();
+                    if !digits_only.is_empty() && digits_only != normalized {
+                        contact_by_address.insert(digits_only, contact.clone());
+                    }
                 }
                 // Index by lowercase trimmed email
                 for email in contact.email_list() {
@@ -277,9 +282,21 @@ fn batch_load_participants_with_contacts(
                                 }
                             }
                         } else {
-                            // For phone handles, try normalized digit match
+                            // For phone handles, try normalized digit match with multiple variants
                             let normalized = crate::models::contact::normalize_address(addr);
-                            if let Some(contact) = contact_by_address.get(&normalized) {
+                            let digits_only: String = addr.chars().filter(|c| c.is_ascii_digit()).collect();
+                            // Try full normalized (with +), then digits-only, then without country code
+                            let resolved = contact_by_address.get(&normalized)
+                                .or_else(|| contact_by_address.get(&digits_only))
+                                .or_else(|| {
+                                    // Try stripping leading '1' for US numbers (e.g. 15551234567 -> 5551234567)
+                                    if digits_only.len() == 11 && digits_only.starts_with('1') {
+                                        contact_by_address.get(&digits_only[1..])
+                                    } else {
+                                        None
+                                    }
+                                });
+                            if let Some(contact) = resolved {
                                 handle.contact = Some(Box::new(contact.clone()));
                             }
                         }

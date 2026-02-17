@@ -1,9 +1,10 @@
 //! Diagnostic commands for troubleshooting avatar syncing and missing chats.
 //!
 //! Provides CLI commands to inspect the contact avatar pipeline, detect
-//! missing conversations between server and local DB, and drill into
-//! individual chat discrepancies.
+//! missing conversations between server and local DB, drill into
+//! individual chat discrepancies, and verify contact name resolution.
 
+use std::collections::HashMap;
 use clap::Subcommand;
 use console::style;
 
@@ -11,6 +12,7 @@ use bb_api::endpoints::chats::ChatQuery;
 use bb_core::config::ConfigHandle;
 use bb_core::error::BbResult;
 use bb_models::Contact;
+use bb_models::models::contact::normalize_address;
 use crate::OutputFormat;
 
 #[derive(Subcommand)]
@@ -27,6 +29,10 @@ pub enum DiagnoseAction {
         /// The chat GUID to inspect (e.g. "iMessage;-;+15551234567").
         guid: String,
     },
+    /// Test contact name resolution for all handles: simulates the
+    /// matching logic from batch_load_participants_with_contacts to find
+    /// handles that resolve (or fail to resolve) to a contact name.
+    Contacts,
 }
 
 pub async fn run(
@@ -38,6 +44,7 @@ pub async fn run(
         DiagnoseAction::Avatars => run_avatars(config).await,
         DiagnoseAction::Chats => run_chats(config).await,
         DiagnoseAction::Chat { guid } => run_chat(config, &guid).await,
+        DiagnoseAction::Contacts => run_contacts(config).await,
     }
 }
 
@@ -586,6 +593,266 @@ async fn run_chat(config: ConfigHandle, guid: &str) -> BbResult<()> {
                 e
             );
         }
+    }
+
+    println!();
+    println!("  Diagnosis complete.");
+
+    Ok(())
+}
+
+// ─── Contacts (name resolution) ─────────────────────────────────────────────
+
+async fn run_contacts(config: ConfigHandle) -> BbResult<()> {
+    let db = super::init_database(&config).await?;
+
+    println!("{}", style("Diagnose: Contact Name Resolution").bold().underlined());
+    println!();
+
+    let conn = db.conn()?;
+
+    // 1. Load all handles and contacts
+    let all_handles = bb_models::queries::list_handles(&conn)?;
+    let all_contacts = bb_models::queries::list_contacts(&conn)?;
+
+    println!("  Handles in DB:  {}", style(all_handles.len()).cyan());
+    println!("  Contacts in DB: {}", style(all_contacts.len()).cyan());
+    println!();
+
+    // 2. Build the same contact_by_address lookup map used in queries.rs
+    let mut contact_by_address: HashMap<String, &Contact> = HashMap::new();
+
+    for contact in &all_contacts {
+        // Index by normalized phone numbers AND digits-only variants
+        for phone in contact.phone_list() {
+            let normalized = normalize_address(&phone);
+            contact_by_address.insert(normalized.clone(), contact);
+            // Also index by digits-only (no '+') for cross-format matching
+            let digits_only: String = phone.chars().filter(|c| c.is_ascii_digit()).collect();
+            if !digits_only.is_empty() && digits_only != normalized {
+                contact_by_address.insert(digits_only, contact);
+            }
+        }
+        // Index by lowercase trimmed email
+        for email in contact.email_list() {
+            let lower = email.trim().to_lowercase();
+            contact_by_address.insert(lower.clone(), contact);
+            if let Some(stripped) = lower.strip_prefix("mailto:") {
+                contact_by_address.insert(stripped.to_string(), contact);
+            }
+        }
+    }
+
+    println!(
+        "  Contact lookup index entries: {}",
+        style(contact_by_address.len()).cyan()
+    );
+    println!();
+
+    // 3. Categorize handles
+    let mut resolved_via_contact_id: Vec<&bb_models::models::handle::Handle> = Vec::new();
+    let mut resolved_via_address: Vec<(&bb_models::models::handle::Handle, String, &str)> = Vec::new();
+    let mut unresolved: Vec<&bb_models::models::handle::Handle> = Vec::new();
+
+    for handle in &all_handles {
+        // Check if handle already has a contact_id link
+        if handle.contact_id.is_some() {
+            resolved_via_contact_id.push(handle);
+            continue;
+        }
+
+        let addr = handle.address.trim();
+        let is_email = addr.contains('@');
+
+        let matched: Option<(&Contact, &str)> = if is_email {
+            let lower = addr.to_lowercase();
+            contact_by_address.get(lower.as_str())
+                .map(|c| (*c, "email-direct"))
+                .or_else(|| {
+                    let stripped = lower.strip_prefix("mailto:").unwrap_or(&lower);
+                    contact_by_address.get(stripped).map(|c| (*c, "email-stripped"))
+                })
+        } else {
+            let normalized = normalize_address(addr);
+            let digits_only: String = addr.chars().filter(|c| c.is_ascii_digit()).collect();
+
+            contact_by_address.get(normalized.as_str())
+                .map(|c| (*c, "normalized"))
+                .or_else(|| {
+                    contact_by_address.get(digits_only.as_str()).map(|c| (*c, "digits-only"))
+                })
+                .or_else(|| {
+                    // Try stripping leading '1' for US numbers (e.g. 15551234567 -> 5551234567)
+                    if digits_only.len() == 11 && digits_only.starts_with('1') {
+                        contact_by_address.get(&digits_only[1..]).map(|c| (*c, "strip-leading-1"))
+                    } else {
+                        None
+                    }
+                })
+        };
+
+        match matched {
+            Some((contact, method)) => {
+                resolved_via_address.push((handle, contact.display_name.clone(), method));
+            }
+            None => {
+                unresolved.push(handle);
+            }
+        }
+    }
+
+    // 4. Print summary
+    println!("{}", style("  Resolution Summary:").bold());
+    println!(
+        "    Resolved via contact_id (DB link):  {}",
+        style(resolved_via_contact_id.len()).green()
+    );
+    println!(
+        "    Resolved via address matching:       {}",
+        style(resolved_via_address.len()).green()
+    );
+    println!(
+        "    Unresolved (no contact found):       {}",
+        style(unresolved.len()).yellow()
+    );
+    println!(
+        "    Total handles:                       {}",
+        all_handles.len()
+    );
+    println!();
+
+    // 5. Show address-match breakdown by method
+    if !resolved_via_address.is_empty() {
+        let mut method_counts: HashMap<&str, usize> = HashMap::new();
+        for (_, _, method) in &resolved_via_address {
+            *method_counts.entry(method).or_insert(0) += 1;
+        }
+
+        println!("{}", style("  Address Match Breakdown:").bold());
+        for (method, count) in &method_counts {
+            println!("    {:<20} {}", method, style(count).green());
+        }
+        println!();
+
+        // Show samples of address-matched handles
+        println!("{}", style("  Sample Address Matches (up to 15):").bold());
+        for (handle, contact_name, method) in resolved_via_address.iter().take(15) {
+            println!(
+                "    {} -> {} ({})",
+                style(&handle.address).cyan(),
+                style(contact_name).green(),
+                style(method).dim()
+            );
+        }
+        if resolved_via_address.len() > 15 {
+            println!("    ... and {} more", resolved_via_address.len() - 15);
+        }
+        println!();
+    }
+
+    // 6. Show unresolved handles
+    if !unresolved.is_empty() {
+        println!(
+            "{}",
+            style("  Unresolved Handles (no contact match):").bold()
+        );
+        let mut unresolved_phones: Vec<&str> = Vec::new();
+        let mut unresolved_emails: Vec<&str> = Vec::new();
+        for handle in &unresolved {
+            if handle.address.contains('@') {
+                unresolved_emails.push(&handle.address);
+            } else {
+                unresolved_phones.push(&handle.address);
+            }
+        }
+
+        if !unresolved_phones.is_empty() {
+            println!(
+                "    Phone handles ({}):",
+                style(unresolved_phones.len()).yellow()
+            );
+            for addr in unresolved_phones.iter().take(20) {
+                let normalized = normalize_address(addr);
+                let digits: String = addr.chars().filter(|c| c.is_ascii_digit()).collect();
+                println!(
+                    "      {} (normalized={}, digits={})",
+                    style(addr).yellow(),
+                    normalized,
+                    digits
+                );
+            }
+            if unresolved_phones.len() > 20 {
+                println!("      ... and {} more", unresolved_phones.len() - 20);
+            }
+        }
+
+        if !unresolved_emails.is_empty() {
+            println!(
+                "    Email handles ({}):",
+                style(unresolved_emails.len()).yellow()
+            );
+            for addr in unresolved_emails.iter().take(20) {
+                println!("      {}", style(addr).yellow());
+            }
+            if unresolved_emails.len() > 20 {
+                println!("      ... and {} more", unresolved_emails.len() - 20);
+            }
+        }
+        println!();
+    }
+
+    // 7. Cross-check: handles with contact_id but contact missing from DB
+    let mut orphaned_contact_ids = 0;
+    for handle in &resolved_via_contact_id {
+        if let Some(cid) = handle.contact_id {
+            if !all_contacts.iter().any(|c| c.id == Some(cid)) {
+                orphaned_contact_ids += 1;
+                if orphaned_contact_ids <= 5 {
+                    println!(
+                        "  {} Handle {} has contact_id={} but no matching contact in DB",
+                        style("WARNING").yellow().bold(),
+                        handle.address,
+                        cid
+                    );
+                }
+            }
+        }
+    }
+    if orphaned_contact_ids > 5 {
+        println!(
+            "  ... and {} more orphaned contact_id references",
+            orphaned_contact_ids - 5
+        );
+    }
+    if orphaned_contact_ids > 0 {
+        println!();
+    }
+
+    // 8. Final verdict
+    let total = all_handles.len();
+    let resolved_total = resolved_via_contact_id.len() + resolved_via_address.len();
+    let pct = if total > 0 {
+        (resolved_total as f64 / total as f64) * 100.0
+    } else {
+        100.0
+    };
+
+    println!("{}", style("  Verdict:").bold());
+    if unresolved.is_empty() {
+        println!(
+            "    {} All {} handles resolve to a contact name.",
+            style("PASS").green().bold(),
+            total
+        );
+    } else {
+        println!(
+            "    {} {}/{} handles resolved ({:.1}%). {} unresolved.",
+            if pct >= 90.0 { style("OK").green().bold() } else { style("WARNING").yellow().bold() },
+            resolved_total,
+            total,
+            pct,
+            unresolved.len()
+        );
     }
 
     println!();

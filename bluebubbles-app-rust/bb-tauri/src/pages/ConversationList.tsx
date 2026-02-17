@@ -23,6 +23,11 @@ export function ConversationList() {
   const refreshChats = useChatStore((s) => s.refreshChats);
   const loadMore = useChatStore((s) => s.loadMore);
   const selectChat = useChatStore((s) => s.selectChat);
+  const markChatRead = useChatStore((s) => s.markChatRead);
+  const markChatUnread = useChatStore((s) => s.markChatUnread);
+  const togglePin = useChatStore((s) => s.togglePin);
+  const toggleMute = useChatStore((s) => s.toggleMute);
+  const archiveChat = useChatStore((s) => s.archiveChat);
   const { loaded: settingsLoaded } = useSettingsStore();
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -113,30 +118,42 @@ export function ConversationList() {
   const pinned = useMemo(() => filteredChats.filter((c) => c.chat.is_pinned), [filteredChats]);
   const unpinned = useMemo(() => filteredChats.filter((c) => !c.chat.is_pinned), [filteredChats]);
 
-  // Build context menu items
+  // Build context menu items based on the targeted chat's state
+  const contextTargetChat = chats.find((c) => c.chat.guid === contextMenu.chatGuid);
+  const isUnread = contextTargetChat?.chat.has_unread_message ?? false;
+  const isPinned = contextTargetChat?.chat.is_pinned ?? false;
+  const isMuted = contextTargetChat?.chat.mute_type != null;
+
   const contextMenuItems: ContextMenuItem[] = [
     {
-      label: "Mark as Read",
-      onClick: () => {},
+      label: isUnread ? "Mark as Read" : "Mark as Unread",
+      onClick: () => {
+        if (isUnread) {
+          markChatRead(contextMenu.chatGuid);
+        } else {
+          markChatUnread(contextMenu.chatGuid);
+        }
+      },
     },
     {
-      label: "Pin Conversation",
-      onClick: () => {},
+      label: isPinned ? "Unpin Conversation" : "Pin Conversation",
+      onClick: () => {
+        togglePin(contextMenu.chatGuid);
+      },
     },
     { label: "", onClick: () => {}, divider: true },
     {
-      label: "Mute Conversation",
-      onClick: () => {},
+      label: isMuted ? "Unmute Conversation" : "Mute Conversation",
+      onClick: () => {
+        toggleMute(contextMenu.chatGuid);
+      },
     },
     { label: "", onClick: () => {}, divider: true },
     {
       label: "Archive",
-      onClick: () => {},
-    },
-    {
-      label: "Delete",
-      onClick: () => {},
-      destructive: true,
+      onClick: () => {
+        archiveChat(contextMenu.chatGuid);
+      },
     },
   ];
 

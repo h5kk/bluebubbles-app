@@ -378,6 +378,84 @@ pub async fn mark_chat_read(
     Ok(())
 }
 
+/// Update a chat's properties on the server (pin, archive, mute).
+/// The body is a JSON object with the fields to update.
+#[tauri::command]
+pub async fn update_chat(
+    state: State<'_, AppState>,
+    chat_guid: String,
+    updates: serde_json::Value,
+) -> Result<(), String> {
+    debug!("update_chat chat={chat_guid} updates={updates}");
+
+    let api = state.api_client().await.map_err(|e| e.to_string())?;
+    let encoded_guid = percent_encode_path(&chat_guid);
+    let path = format!("/chat/{}", encoded_guid);
+
+    api.put_json::<serde_json::Value>(&path, &updates)
+        .await
+        .map_err(|e| format!("update chat failed: {e}"))?;
+
+    // Update local DB to reflect changes
+    let conn = state.database.conn().map_err(|e| e.to_string())?;
+
+    if let Some(pinned) = updates.get("pinned").and_then(|v| v.as_bool()) {
+        let val = if pinned { "1" } else { "0" };
+        conn.execute(
+            "UPDATE chats SET is_pinned = ?1 WHERE guid = ?2",
+            [val, &chat_guid],
+        ).map_err(|e| e.to_string())?;
+    }
+    if let Some(archived) = updates.get("isArchived").and_then(|v| v.as_bool()) {
+        let val = if archived { "1" } else { "0" };
+        conn.execute(
+            "UPDATE chats SET is_archived = ?1 WHERE guid = ?2",
+            [val, &chat_guid],
+        ).map_err(|e| e.to_string())?;
+    }
+    if let Some(mute_type) = updates.get("muteType") {
+        if mute_type.is_null() {
+            conn.execute(
+                "UPDATE chats SET mute_type = NULL WHERE guid = ?1",
+                [&chat_guid],
+            ).map_err(|e| e.to_string())?;
+        } else if let Some(mt) = mute_type.as_str() {
+            conn.execute(
+                "UPDATE chats SET mute_type = ?1 WHERE guid = ?2",
+                [mt, &chat_guid],
+            ).map_err(|e| e.to_string())?;
+        }
+    }
+
+    Ok(())
+}
+
+/// Mark a chat as unread in the local DB and on the server.
+#[tauri::command]
+pub async fn mark_chat_unread(
+    state: State<'_, AppState>,
+    chat_guid: String,
+) -> Result<(), String> {
+    debug!("mark_chat_unread chat={chat_guid}");
+
+    let conn = state.database.conn().map_err(|e| e.to_string())?;
+    conn.execute(
+        "UPDATE chats SET has_unread_message = 1 WHERE guid = ?1",
+        [&chat_guid],
+    ).map_err(|e| e.to_string())?;
+
+    // Call server API to mark as unread
+    let api = state.api_client().await.map_err(|e| e.to_string())?;
+    let encoded_guid = percent_encode_path(&chat_guid);
+    let path = format!("/chat/{}/unread", encoded_guid);
+    let body = serde_json::json!({});
+    if let Err(e) = api.post_json::<serde_json::Value>(&path, &body).await {
+        debug!("mark_chat_unread server call failed (non-fatal): {e}");
+    }
+
+    Ok(())
+}
+
 // ─── Message commands ────────────────────────────────────────────────────────
 
 #[tauri::command]
@@ -477,7 +555,19 @@ pub async fn send_message(
         .as_ref()
         .ok_or_else(|| "no data in send response".to_string())?;
 
-    let msg = Message::from_server_map(data).map_err(|e| e.to_string())?;
+    let mut msg = Message::from_server_map(data).map_err(|e| e.to_string())?;
+
+    // Save the sent message to local DB so it persists across view reloads.
+    // Look up the chat's local ID to associate the message correctly.
+    let conn = state.database.conn().map_err(|e| e.to_string())?;
+    if let Some(chat) = Chat::find_by_guid(&conn, &chat_guid).map_err(|e| e.to_string())? {
+        msg.chat_id = chat.id;
+    }
+    // Best-effort save; don't fail the send if DB write fails
+    if let Err(e) = msg.save(&conn) {
+        debug!("failed to save sent message to local DB (non-fatal): {e}");
+    }
+
     Ok(msg)
 }
 
@@ -624,8 +714,92 @@ pub async fn sync_contact_avatars(
         }
     }
 
-    info!("avatar sync: {total_contacts} contacts from server, {contacts_with_avatar_field} had avatar field, {avatars_synced} saved with avatar data");
+    // After saving contacts, link them to handles by setting handle.contact_id.
+    // This ensures batch_load_participants_with_contacts resolves names via the
+    // fast first-pass JOIN rather than relying solely on address matching.
+    let linked = link_contacts_to_handles(&conn);
+    info!("avatar sync: {total_contacts} contacts from server, {contacts_with_avatar_field} had avatar field, {avatars_synced} saved with avatar data, {linked} handles linked to contacts");
     Ok(avatars_synced)
+}
+
+/// Link contacts to handles by matching phone numbers and emails.
+/// Sets handle.contact_id for every handle whose address matches a contact,
+/// ensuring that batch_load_participants_with_contacts can resolve names
+/// via the fast first-pass JOIN on contact_id.
+fn link_contacts_to_handles(conn: &Connection) -> u32 {
+    let contacts = match queries::list_contacts(conn) {
+        Ok(c) => c,
+        Err(_) => return 0,
+    };
+    let handles = match queries::list_handles(conn) {
+        Ok(h) => h,
+        Err(_) => return 0,
+    };
+
+    // Build a lookup from normalized address -> contact local DB id
+    let mut addr_to_contact_id: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
+    for contact in &contacts {
+        let contact_id = match contact.id {
+            Some(id) => id,
+            None => continue,
+        };
+        for phone in contact.phone_list() {
+            let normalized = bb_models::models::contact::normalize_address(&phone);
+            addr_to_contact_id.insert(normalized.clone(), contact_id);
+            // Also index by digits-only (no '+') for cross-format matching
+            let digits_only: String = phone.chars().filter(|c| c.is_ascii_digit()).collect();
+            if !digits_only.is_empty() && digits_only != normalized {
+                addr_to_contact_id.insert(digits_only, contact_id);
+            }
+        }
+        for email in contact.email_list() {
+            addr_to_contact_id.insert(email.trim().to_lowercase(), contact_id);
+        }
+    }
+
+    let mut linked = 0u32;
+    for handle in &handles {
+        // Skip if already linked
+        if handle.contact_id.is_some() {
+            continue;
+        }
+        let handle_id = match handle.id {
+            Some(id) => id,
+            None => continue,
+        };
+
+        let addr = handle.address.trim();
+        let is_email = addr.contains('@');
+
+        let matched_contact_id = if is_email {
+            addr_to_contact_id.get(&addr.to_lowercase()).copied()
+        } else {
+            let normalized = bb_models::models::contact::normalize_address(addr);
+            let digits_only: String = addr.chars().filter(|c| c.is_ascii_digit()).collect();
+            addr_to_contact_id.get(&normalized).copied()
+                .or_else(|| addr_to_contact_id.get(&digits_only).copied())
+                .or_else(|| {
+                    // Try stripping leading '1' for US numbers
+                    if digits_only.len() == 11 && digits_only.starts_with('1') {
+                        addr_to_contact_id.get(&digits_only[1..]).copied()
+                    } else {
+                        None
+                    }
+                })
+        };
+
+        if let Some(contact_id) = matched_contact_id {
+            let result = conn.execute(
+                "UPDATE handles SET contact_id = ?1 WHERE id = ?2",
+                rusqlite::params![contact_id, handle_id],
+            );
+            if result.is_ok() {
+                linked += 1;
+            }
+        }
+    }
+
+    linked
 }
 
 // ─── Attachment commands ─────────────────────────────────────────────────────
@@ -863,6 +1037,9 @@ pub async fn sync_full(state: State<'_, AppState>) -> Result<SyncResult, String>
         }
     }
 
+    // Link contacts to handles so name resolution works via the fast JOIN path
+    let linked = link_contacts_to_handles(&conn);
+
     let result = SyncResult {
         chats_synced,
         messages_synced: 0,
@@ -870,7 +1047,7 @@ pub async fn sync_full(state: State<'_, AppState>) -> Result<SyncResult, String>
         contacts_synced,
     };
 
-    info!("sync complete: {chats_synced} chats, {handles_synced} handles, {contacts_synced} contacts");
+    info!("sync complete: {chats_synced} chats, {handles_synced} handles, {contacts_synced} contacts, {linked} handles linked");
     Ok(result)
 }
 
@@ -1009,4 +1186,173 @@ pub async fn complete_setup(state: State<'_, AppState>) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
     state.mark_setup_complete().await;
     Ok(())
+}
+
+// ─── FindMy commands ─────────────────────────────────────────────────────────
+
+/// Serializable FindMy device for the frontend.
+#[derive(serde::Serialize, Clone, Debug)]
+pub struct FindMyDeviceInfo {
+    pub id: String,
+    pub name: String,
+    pub model: String,
+    pub device_class: Option<String>,
+    pub raw_device_model: Option<String>,
+    pub battery_level: Option<f64>,
+    pub battery_status: Option<String>,
+    pub latitude: Option<f64>,
+    pub longitude: Option<f64>,
+    pub location_timestamp: Option<u64>,
+    pub location_type: Option<String>,
+    pub address: Option<String>,
+    pub is_old_location: bool,
+    pub is_online: bool,
+    pub is_mac: bool,
+    pub this_device: bool,
+    pub lost_mode_enabled: bool,
+}
+
+/// Helper: extract a location from a FindMy device JSON object.
+/// Falls back to crowdSourcedLocation if primary location has no coordinates.
+fn extract_findmy_location(d: &serde_json::Value) -> Option<&serde_json::Value> {
+    let primary = d.get("location").filter(|l| !l.is_null());
+    let has_coords = primary
+        .and_then(|l| l.get("latitude"))
+        .and_then(|v| v.as_f64())
+        .is_some();
+
+    if has_coords {
+        primary
+    } else {
+        // Fall back to crowdSourcedLocation if primary location has no coordinates
+        d.get("crowdSourcedLocation").filter(|l| !l.is_null())
+    }
+}
+
+/// Helper: extract formatted address string from the address object.
+fn extract_findmy_address(d: &serde_json::Value) -> Option<String> {
+    let addr = d.get("address").filter(|a| !a.is_null())?;
+
+    // Try formattedAddressLines first (array of strings)
+    if let Some(lines) = addr.get("formattedAddressLines").and_then(|v| v.as_array()) {
+        let parts: Vec<&str> = lines.iter().filter_map(|l| l.as_str()).collect();
+        if !parts.is_empty() {
+            return Some(parts.join(", "));
+        }
+    }
+
+    // Fall back to mapItemFullAddress
+    if let Some(full) = addr.get("mapItemFullAddress").and_then(|v| v.as_str()) {
+        return Some(full.to_string());
+    }
+
+    // Fall back to locality + country
+    let locality = addr.get("locality").and_then(|v| v.as_str());
+    let country = addr.get("country").and_then(|v| v.as_str());
+    match (locality, country) {
+        (Some(loc), Some(ctry)) => Some(format!("{}, {}", loc, ctry)),
+        (Some(loc), None) => Some(loc.to_string()),
+        (None, Some(ctry)) => Some(ctry.to_string()),
+        _ => None,
+    }
+}
+
+/// Get FindMy devices from the server.
+#[tauri::command]
+pub async fn get_findmy_devices(
+    state: State<'_, AppState>,
+) -> Result<Vec<FindMyDeviceInfo>, String> {
+    info!("get_findmy_devices");
+    let api = state.api_client().await.map_err(|e| e.to_string())?;
+    let devices = api
+        .get_findmy_devices()
+        .await
+        .map_err(|e| format!("findmy failed: {e}"))?;
+
+    let result: Vec<FindMyDeviceInfo> = devices
+        .iter()
+        .map(|d| {
+            let location = extract_findmy_location(d);
+
+            // deviceStatus can be a string like "200" or a number like 200
+            let is_online = d.get("deviceStatus")
+                .map(|v| {
+                    if let Some(s) = v.as_str() {
+                        s == "200" || s == "203"
+                    } else if let Some(n) = v.as_u64() {
+                        n == 200 || n == 203
+                    } else {
+                        false
+                    }
+                })
+                .unwrap_or(false);
+
+            // batteryStatus can be a string or a number (for Items)
+            let battery_status = d.get("batteryStatus").and_then(|v| {
+                if let Some(s) = v.as_str() {
+                    Some(s.to_string())
+                } else if let Some(n) = v.as_u64() {
+                    // FindMyItem uses numeric batteryStatus
+                    Some(n.to_string())
+                } else {
+                    None
+                }
+            });
+
+            FindMyDeviceInfo {
+                id: d.get("id")
+                    .or_else(|| d.get("identifier"))
+                    .or_else(|| d.get("deviceDiscoveryId"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                name: d.get("name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("Unknown")
+                    .to_string(),
+                model: d.get("deviceDisplayName")
+                    .or_else(|| d.get("modelDisplayName"))
+                    .or_else(|| d.get("deviceModel"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("Unknown")
+                    .to_string(),
+                device_class: d.get("deviceClass")
+                    .and_then(|v| v.as_str())
+                    .map(String::from),
+                raw_device_model: d.get("rawDeviceModel")
+                    .and_then(|v| v.as_str())
+                    .map(String::from),
+                battery_level: d.get("batteryLevel").and_then(|v| v.as_f64()),
+                battery_status,
+                latitude: location.and_then(|l| l.get("latitude")).and_then(|v| v.as_f64()),
+                longitude: location.and_then(|l| l.get("longitude")).and_then(|v| v.as_f64()),
+                // timeStamp is a number (epoch milliseconds), not a string
+                location_timestamp: location
+                    .and_then(|l| l.get("timeStamp"))
+                    .and_then(|v| v.as_u64()),
+                location_type: location
+                    .and_then(|l| l.get("positionType"))
+                    .and_then(|v| v.as_str())
+                    .map(String::from),
+                address: extract_findmy_address(d),
+                is_old_location: location
+                    .and_then(|l| l.get("isOld"))
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false),
+                is_online,
+                is_mac: d.get("isMac")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false),
+                this_device: d.get("thisDevice")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false),
+                lost_mode_enabled: d.get("lostModeEnabled")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false),
+            }
+        })
+        .collect();
+
+    info!("get_findmy_devices: {} devices", result.len());
+    Ok(result)
 }

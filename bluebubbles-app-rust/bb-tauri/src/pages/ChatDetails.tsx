@@ -69,21 +69,25 @@ export function ChatDetails() {
       {/* Back header */}
       <div style={headerStyle}>
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => navigate(`/chat/${encodeURIComponent(decodedGuid)}`)}
           style={{
-            width: 32,
-            height: 32,
-            borderRadius: "50%",
             display: "flex",
             alignItems: "center",
-            justifyContent: "center",
-            fontSize: 18,
+            gap: 4,
+            padding: "4px 8px 4px 2px",
+            borderRadius: 8,
             color: "var(--color-primary)",
             cursor: "pointer",
+            backgroundColor: "transparent",
+            fontSize: "var(--font-body-medium)",
+            fontWeight: 400,
           }}
           aria-label="Go back"
         >
-          {"\u2190"}
+          <svg width="10" height="18" viewBox="0 0 10 18" fill="none">
+            <path d="M9 1L1.5 9L9 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          Back
         </button>
         <span
           style={{

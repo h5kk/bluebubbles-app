@@ -64,6 +64,8 @@ fn main() {
             commands::get_chats,
             commands::refresh_chats,
             commands::mark_chat_read,
+            commands::mark_chat_unread,
+            commands::update_chat,
             commands::get_messages,
             commands::send_message,
             commands::search_messages,
@@ -86,6 +88,7 @@ fn main() {
             commands::send_reaction,
             commands::edit_message,
             commands::unsend_message,
+            commands::get_findmy_devices,
         ])
         .setup(|app| {
             // Setup system tray

@@ -30,7 +30,6 @@ logs/
 # Tauri
 bb-tauri/src-tauri/target/
 bb-tauri/src-tauri/WixTools/
-bb-tauri/src-tauri/icons/
 
 # Test/debug data
 tools/api_*.json
