@@ -9,6 +9,7 @@ description = "BlueBubbles HTTP API client for the server REST API"
 [dependencies]
 # Workspace crates
 bb-core = { path = "../bb-core" }
+bb-models = { path = "../bb-models" }
 
 # HTTP client
 reqwest.workspace = true

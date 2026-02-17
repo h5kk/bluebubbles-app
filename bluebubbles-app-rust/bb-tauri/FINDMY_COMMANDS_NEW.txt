@@ -1,0 +1,75 @@
+// ─── FindMy commands ─────────────────────────────────────────────────────────
+
+/// Get FindMy devices from the server.
+#[tauri::command]
+pub async fn get_findmy_devices(
+    state: State<'_, AppState>,
+) -> Result<Vec<FindMyDevice>, String> {
+    info!("get_findmy_devices");
+    let api = state.api_client().await.map_err(|e| e.to_string())?;
+    let items = api
+        .get_findmy_devices()
+        .await
+        .map_err(|e| format!("findmy failed: {e}"))?;
+
+    tracing::debug!("FindMy devices response: {} devices", items.len());
+
+    let devices: Vec<FindMyDevice> = items.into_iter().map(FindMyDevice::from).collect();
+
+    info!("get_findmy_devices: {} devices", devices.len());
+    Ok(devices)
+}
+
+/// Refresh FindMy device locations by triggering an iCloud refresh.
+/// This can take 30+ seconds as it contacts Apple's servers.
+#[tauri::command]
+pub async fn refresh_findmy_devices(
+    state: State<'_, AppState>,
+) -> Result<Vec<FindMyDevice>, String> {
+    info!("refresh_findmy_devices");
+    let api = state.api_client().await.map_err(|e| e.to_string())?;
+    let items = api
+        .refresh_findmy_devices()
+        .await
+        .map_err(|e| format!("findmy refresh failed: {e}"))?;
+
+    let devices: Vec<FindMyDevice> = items.into_iter().map(FindMyDevice::from).collect();
+
+    info!("refresh_findmy_devices: {} devices", devices.len());
+    Ok(devices)
+}
+
+// ─── FindMy Friends commands ────────────────────────────────────────────────
+
+/// Get FindMy friends from the server.
+#[tauri::command]
+pub async fn get_findmy_friends(
+    state: State<'_, AppState>,
+) -> Result<Vec<FindMyLocationItem>, String> {
+    info!("get_findmy_friends");
+    let api = state.api_client().await.map_err(|e| e.to_string())?;
+    let friends = api
+        .get_findmy_friends()
+        .await
+        .map_err(|e| format!("findmy friends failed: {e}"))?;
+
+    info!("get_findmy_friends: {} friends", friends.len());
+    Ok(friends)
+}
+
+/// Refresh FindMy friend locations by triggering an iCloud refresh.
+/// This can take 30+ seconds as it contacts Apple's servers.
+#[tauri::command]
+pub async fn refresh_findmy_friends(
+    state: State<'_, AppState>,
+) -> Result<Vec<FindMyLocationItem>, String> {
+    info!("refresh_findmy_friends");
+    let api = state.api_client().await.map_err(|e| e.to_string())?;
+    let friends = api
+        .refresh_findmy_friends()
+        .await
+        .map_err(|e| format!("findmy friends refresh failed: {e}"))?;
+
+    info!("refresh_findmy_friends: {} friends", friends.len());
+    Ok(friends)
+}

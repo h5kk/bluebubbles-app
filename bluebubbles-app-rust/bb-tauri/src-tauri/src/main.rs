@@ -57,11 +57,13 @@ fn main() {
     // Build and run the Tauri application
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
         .manage(app_state)
         .invoke_handler(tauri::generate_handler![
             commands::connect,
             commands::try_auto_connect,
             commands::get_server_info,
+            commands::detect_localhost,
             commands::get_chats,
             commands::refresh_chats,
             commands::mark_chat_read,
@@ -74,7 +76,10 @@ fn main() {
             commands::get_contact_avatar,
             commands::get_all_contact_avatars,
             commands::sync_contact_avatars,
+            commands::pick_attachment_file,
+            commands::send_attachment_message,
             commands::download_attachment,
+            commands::get_message_reactions,
             commands::get_settings,
             commands::update_setting,
             commands::sync_full,

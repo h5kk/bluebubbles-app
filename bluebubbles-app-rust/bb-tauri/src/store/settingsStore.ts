@@ -19,6 +19,9 @@ interface SettingsState {
   demoMode: boolean;
   otpDetection: boolean;
   otpAutoCopy: boolean;
+  showConversationDividers: boolean;
+  headerAvatarInline: boolean;
+  debugMode: boolean;
 
   loadSettings: () => Promise<void>;
   updateSetting: (key: string, value: string) => Promise<void>;
@@ -36,10 +39,13 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   tabletMode: true,
   colorfulAvatars: true,
   colorfulBubbles: false,
-  sendWithReturn: false,
+  sendWithReturn: true,
   demoMode: false,
   otpDetection: true,
   otpAutoCopy: true,
+  showConversationDividers: true,
+  headerAvatarInline: true,
+  debugMode: false,
 
   loadSettings: async () => {
     try {
@@ -58,6 +64,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         demoMode: settings["demoMode"] === "true",
         otpDetection: settings["otpDetection"] !== "false",
         otpAutoCopy: settings["otpAutoCopy"] !== "false",
+        showConversationDividers: settings["showConversationDividers"] !== "false",
+        headerAvatarInline: settings["headerAvatarInline"] !== "false",
+        debugMode: settings["debugMode"] === "true",
       });
     } catch {
       set({ loaded: true });
@@ -78,6 +87,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     if (key === "demoMode") updated.demoMode = value === "true";
     if (key === "otpDetection") updated.otpDetection = value !== "false";
     if (key === "otpAutoCopy") updated.otpAutoCopy = value !== "false";
+    if (key === "showConversationDividers") updated.showConversationDividers = value !== "false";
+    if (key === "headerAvatarInline") updated.headerAvatarInline = value !== "false";
+    if (key === "debugMode") updated.debugMode = value === "true";
 
     set(updated);
 

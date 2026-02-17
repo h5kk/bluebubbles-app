@@ -24,27 +24,32 @@
   --color-on-surface: #1A1C1E;
   --color-surface-variant: #F3F3F6;
   --color-on-surface-variant: #43474E;
-  --color-outline: #74777F;
+  --color-outline: #808080;
   --color-shadow: rgba(0, 0, 0, 0.15);
+  --color-divider-subtle: rgba(0, 0, 0, 0.08);
   --color-inverse-surface: #2F3033;
   --color-on-inverse-surface: #F1F0F4;
   --color-inverse-primary: #A5C8FF;
+  --color-search-bg: var(--color-surface-variant);
+  --color-search-on: var(--color-on-surface);
+  --color-search-placeholder: var(--color-on-surface-variant);
+  --color-search-icon: var(--color-outline);
 
   /* ─── Bubble Color Tokens ─────────────────────────────────────────── */
   --bubble-imessage-sent: #2C6BED;
   --bubble-imessage-on-sent: #FFFFFF;
   --bubble-sms-sent: #43CC47;
   --bubble-sms-on-sent: #FFFFFF;
-  --bubble-received: #E9E9E8;
-  --bubble-on-received: #000000;
+  --bubble-received: #E9E9EB;
+  --bubble-on-received: #1C1C1C;
 
   /* ─── Bubble Geometry ─────────────────────────────────────────────── */
-  --bubble-radius-large: 20px;
-  --bubble-radius-small: 5px;
-  --bubble-padding-v: 10px;
-  --bubble-padding-h: 15px;
-  --bubble-max-width: 75%;
-  --bubble-min-height: 40px;
+  --bubble-radius-large: 18px;
+  --bubble-radius-small: 6px;
+  --bubble-padding-v: 7px;
+  --bubble-padding-h: 12px;
+  --bubble-max-width: 70%;
+  --bubble-min-height: 30px;
 
   /* ─── Typography Scale ────────────────────────────────────────────── */
   --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -73,10 +78,11 @@
   --avatar-bg-to: #8E9BB0;
 
   /* ─── Layout Tokens ───────────────────────────────────────────────── */
-  --sidebar-width: 380px;
+  --sidebar-width: 315px;
   --sidebar-min-width: 300px;
   --divider-width: 1px;
-  --titlebar-height: 32px;
+  --titlebar-height: 56px;
+  --title-bar-height: 56px;
   --appbar-height: 50px;
   --input-bar-min-height: 48px;
 
@@ -133,11 +139,14 @@
   --color-on-surface-variant: #C4C6CF;
   --color-outline: #8E9099;
   --color-shadow: rgba(0, 0, 0, 0.4);
+  --color-divider-subtle: rgba(255, 255, 255, 0.08);
   --color-inverse-surface: #E3E2E6;
   --color-on-inverse-surface: #2F3033;
   --color-inverse-primary: #7BA5F5;
-  --bubble-received: #262626;
-  --bubble-on-received: #E3E2E6;
+  --bubble-sms-sent: #3BAF3F;
+  --bubble-sms-on-sent: #FFFFFF;
+  --bubble-received: #333534;
+  --bubble-on-received: #FFFFFF;
 }
 
 /* ─── Dark Theme: Blue Dark ──────────────────────────────────────────── */
@@ -166,8 +175,11 @@
   --color-on-surface-variant: #BFC6D0;
   --color-outline: #8A9099;
   --color-shadow: rgba(0, 0, 0, 0.4);
-  --bubble-received: #1B2A3B;
-  --bubble-on-received: #E0E2E8;
+  --color-divider-subtle: rgba(255, 255, 255, 0.08);
+  --bubble-sms-sent: #3BAF3F;
+  --bubble-sms-on-sent: #FFFFFF;
+  --bubble-received: #333534;
+  --bubble-on-received: #FFFFFF;
 }
 
 /* ─── Dark Theme: Indigo Dark ────────────────────────────────────────── */
@@ -191,8 +203,11 @@
   --color-surface-variant: #1E2038;
   --color-on-surface-variant: #C5C5D3;
   --color-outline: #8F909D;
-  --bubble-received: #1E2038;
-  --bubble-on-received: #E2E1EC;
+  --color-divider-subtle: rgba(255, 255, 255, 0.08);
+  --bubble-sms-sent: #3BAF3F;
+  --bubble-sms-on-sent: #FFFFFF;
+  --bubble-received: #333534;
+  --bubble-on-received: #FFFFFF;
 }
 
 /* ─── Dark Theme: Nord ───────────────────────────────────────────────── */
@@ -220,12 +235,13 @@
   --color-surface-variant: #3B4252;
   --color-on-surface-variant: #D8DEE9;
   --color-outline: #7B88A1;
+  --color-divider-subtle: rgba(255, 255, 255, 0.08);
   --bubble-imessage-sent: #5E81AC;
   --bubble-imessage-on-sent: #ECEFF4;
   --bubble-sms-sent: #A3BE8C;
   --bubble-sms-on-sent: #2E3440;
-  --bubble-received: #3B4252;
-  --bubble-on-received: #ECEFF4;
+  --bubble-received: #333534;
+  --bubble-on-received: #FFFFFF;
 }
 
 /* ─── Dark Theme: Green Dark ─────────────────────────────────────────── */
@@ -249,8 +265,11 @@
   --color-surface-variant: #1A261A;
   --color-on-surface-variant: #BFC9BF;
   --color-outline: #8A938A;
-  --bubble-received: #1A261A;
-  --bubble-on-received: #DEE4DE;
+  --color-divider-subtle: rgba(255, 255, 255, 0.08);
+  --bubble-sms-sent: #3BAF3F;
+  --bubble-sms-on-sent: #FFFFFF;
+  --bubble-received: #333534;
+  --bubble-on-received: #FFFFFF;
 }
 
 /* ─── Dark Theme: Purple Dark ────────────────────────────────────────── */
@@ -274,8 +293,11 @@
   --color-surface-variant: #211C2B;
   --color-on-surface-variant: #CBC4D4;
   --color-outline: #958E9E;
-  --bubble-received: #211C2B;
-  --bubble-on-received: #E6E0EC;
+  --color-divider-subtle: rgba(255, 255, 255, 0.08);
+  --bubble-sms-sent: #3BAF3F;
+  --bubble-sms-on-sent: #FFFFFF;
+  --bubble-received: #333534;
+  --bubble-on-received: #FFFFFF;
 }
 
 /* ─── Light Theme: Blue Light ────────────────────────────────────────── */
@@ -290,7 +312,7 @@
   --color-on-surface: #1A1C1E;
   --color-surface-variant: #E3EBF5;
   --color-on-surface-variant: #43474E;
-  --color-outline: #74777F;
+  --color-outline: #808080;
 }
 
 /* ─── Light Theme: Pink Light ────────────────────────────────────────── */
@@ -305,93 +327,102 @@
   --color-on-surface: #1A1C1E;
   --color-surface-variant: #F5E3E8;
   --color-on-surface-variant: #43474E;
-  --color-outline: #74777F;
+  --color-outline: #808080;
   --bubble-imessage-sent: #D81B60;
 }
 
 /* ─── Light Theme: Liquid Glass Light ───────────────────────────────────── */
 /* iOS 26 Liquid Glass: frosted translucent panels with backdrop blur */
 [data-theme="liquid-glass-light"] {
-  --color-primary: #007AFF;
+  --color-primary: #1F90FF;
   --color-on-primary: #FFFFFF;
-  --color-primary-container: rgba(0, 122, 255, 0.10);
-  --color-on-primary-container: #003A80;
+  --color-primary-container: rgba(31, 144, 255, 0.12);
+  --color-on-primary-container: #003A7A;
   --color-secondary: #555F71;
   --color-on-secondary: #FFFFFF;
-  --color-secondary-container: rgba(85, 95, 113, 0.08);
+  --color-secondary-container: #E9E9E9;
   --color-on-secondary-container: #121C2B;
-  --color-error: #FF3B30;
+  --color-error: #FF4F52;
   --color-on-error: #FFFFFF;
   --color-error-container: #FFDAD6;
   --color-on-error-container: #410002;
-  --color-background: rgba(242, 242, 247, 0.72);
+  --color-background: #FFFFFF;
   --color-on-background: #1C1C1E;
-  --color-surface: rgba(255, 255, 255, 0.70);
+  --color-surface: #FFFFFF;
   --color-on-surface: #1C1C1E;
-  --color-surface-variant: rgba(120, 120, 128, 0.12);
-  --color-on-surface-variant: #3C3C43;
-  --color-outline: rgba(60, 60, 67, 0.29);
+  --color-surface-variant: #E9E9E9;
+  --color-on-surface-variant: #4A4A4A;
+  --color-outline: #B0B0B0;
   --color-shadow: rgba(0, 0, 0, 0.04);
   --color-inverse-surface: #2C2C2E;
   --color-on-inverse-surface: #F2F2F7;
   --color-inverse-primary: #64B5F6;
-  --bubble-imessage-sent: #007AFF;
+  --bubble-imessage-sent: #1F90FF;
   --bubble-imessage-on-sent: #FFFFFF;
-  --bubble-sms-sent: #34C759;
+  --bubble-sms-sent: #30C051;
   --bubble-sms-on-sent: #FFFFFF;
-  --bubble-received: rgba(0, 0, 0, 0.05);
-  --bubble-on-received: #000000;
+  --bubble-received: #E4E6E6;
+  --bubble-on-received: #1C1C1C;
+  --color-search-bg: #5F6062;
+  --color-search-on: #F6F6F8;
+  --color-search-placeholder: #C8C9CE;
+  --color-search-icon: #C8C9CE;
 
   /* Liquid glass tokens */
-  --glass-bg: rgba(255, 255, 255, 0.70);
-  --glass-bg-elevated: rgba(255, 255, 255, 0.82);
+  --glass-bg: rgba(255, 255, 255, 0.74);
+  --glass-bg-elevated: rgba(255, 255, 255, 0.86);
   --glass-border: rgba(255, 255, 255, 0.18);
   --glass-border-subtle: rgba(0, 0, 0, 0.06);
-  --glass-blur: 16px;
-  --glass-shadow: 0 2px 20px rgba(0, 0, 0, 0.06);
-  --glass-shadow-elevated: 0 8px 32px rgba(0, 0, 0, 0.10);
+  --glass-blur: 18px;
+  --glass-shadow: 0 2px 20px rgba(0, 0, 0, 0.08);
+  --glass-shadow-elevated: 0 10px 32px rgba(0, 0, 0, 0.12);
 }
 
 /* ─── Dark Theme: Liquid Glass Dark ────────────────────────────────────── */
 [data-theme="liquid-glass-dark"] {
-  --color-primary: #0A84FF;
+  --color-primary: #3592FD;
   --color-on-primary: #FFFFFF;
-  --color-primary-container: rgba(10, 132, 255, 0.18);
-  --color-on-primary-container: #B8D0FF;
+  --color-primary-container: rgba(53, 146, 253, 0.22);
+  --color-on-primary-container: #B9D3FF;
   --color-secondary: #8E8E93;
   --color-on-secondary: #FFFFFF;
-  --color-secondary-container: rgba(142, 142, 147, 0.18);
+  --color-secondary-container: #3A3A3A;
   --color-on-secondary-container: #D9E3F8;
-  --color-error: #FF453A;
+  --color-error: #FF4F52;
   --color-on-error: #FFFFFF;
   --color-error-container: #93000A;
   --color-on-error-container: #FFDAD6;
-  --color-background: rgba(0, 0, 0, 0.72);
+  --color-background: #1C1C1C;
   --color-on-background: #F5F5F7;
-  --color-surface: rgba(44, 44, 46, 0.65);
+  --color-surface: #1C1C1C;
   --color-on-surface: #F5F5F7;
-  --color-surface-variant: rgba(56, 56, 58, 0.50);
-  --color-on-surface-variant: #EBEBF5;
-  --color-outline: rgba(84, 84, 88, 0.65);
+  --color-surface-variant: #343635;
+  --color-on-surface-variant: #B8B8BE;
+  --color-outline: #545453;
   --color-shadow: rgba(0, 0, 0, 0.32);
+  --color-divider-subtle: rgba(255, 255, 255, 0.08);
   --color-inverse-surface: #F5F5F7;
   --color-on-inverse-surface: #1C1C1E;
-  --color-inverse-primary: #0A84FF;
-  --bubble-imessage-sent: #0A84FF;
+  --color-inverse-primary: #3592FD;
+  --bubble-imessage-sent: #3592FD;
   --bubble-imessage-on-sent: #FFFFFF;
-  --bubble-sms-sent: #30D158;
+  --bubble-sms-sent: #30C051;
   --bubble-sms-on-sent: #FFFFFF;
-  --bubble-received: rgba(255, 255, 255, 0.08);
+  --bubble-received: #343635;
   --bubble-on-received: #F5F5F7;
+  --color-search-bg: #2B2C2D;
+  --color-search-on: #F5F5F7;
+  --color-search-placeholder: #A6A6AC;
+  --color-search-icon: #8E8E93;
 
   /* Liquid glass tokens */
-  --glass-bg: rgba(30, 30, 32, 0.65);
-  --glass-bg-elevated: rgba(44, 44, 46, 0.78);
+  --glass-bg: rgba(28, 28, 28, 0.70);
+  --glass-bg-elevated: rgba(44, 44, 46, 0.82);
   --glass-border: rgba(255, 255, 255, 0.08);
   --glass-border-subtle: rgba(255, 255, 255, 0.04);
-  --glass-blur: 20px;
-  --glass-shadow: 0 2px 20px rgba(0, 0, 0, 0.20);
-  --glass-shadow-elevated: 0 8px 32px rgba(0, 0, 0, 0.36);
+  --glass-blur: 22px;
+  --glass-shadow: 0 2px 20px rgba(0, 0, 0, 0.22);
+  --glass-shadow-elevated: 0 10px 32px rgba(0, 0, 0, 0.38);
 }
 
 /* ─── Base Reset ────────────────────────────────────────────────────────── */
@@ -450,6 +481,14 @@ input, textarea {
   outline: none;
   background: transparent;
   color: inherit;
+  user-select: text;
+  -webkit-user-select: text;
+  -webkit-app-region: no-drag;
+}
+
+button,
+select {
+  -webkit-app-region: no-drag;
 }
 
 /* ─── Scrollbar Styling ─────────────────────────────────────────────────── */
@@ -512,4 +551,8 @@ input, textarea {
 
 [data-theme="liquid-glass-dark"] .glass-input {
   background: rgba(120, 120, 128, 0.16);
+}
+
+.search-input::placeholder {
+  color: var(--color-search-placeholder);
 }

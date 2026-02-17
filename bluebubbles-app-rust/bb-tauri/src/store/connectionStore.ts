@@ -10,6 +10,7 @@ interface ConnectionState {
   status: ConnectionStatus;
   serverInfo: ServerInfo | null;
   error: string | null;
+  errorAt: number | null;
 
   setStatus: (status: ConnectionStatus) => void;
   setServerInfo: (info: ServerInfo) => void;
@@ -21,14 +22,20 @@ export const useConnectionStore = create<ConnectionState>((set) => ({
   status: "disconnected",
   serverInfo: null,
   error: null,
+  errorAt: null,
 
   setStatus: (status) => set({ status }),
   setServerInfo: (serverInfo) => set({ serverInfo }),
-  setError: (error) => set({ error }),
+  setError: (error) =>
+    set({
+      error,
+      errorAt: error ? Date.now() : null,
+    }),
   reset: () =>
     set({
       status: "disconnected",
       serverInfo: null,
       error: null,
+      errorAt: null,
     }),
 }));

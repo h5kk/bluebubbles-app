@@ -234,6 +234,7 @@ impl Chat {
                 return names.join(", ");
             }
         }
+        // 3. Fall back to participant names even if unresolved
         if !self.participants.is_empty() {
             return self.participants
                 .iter()

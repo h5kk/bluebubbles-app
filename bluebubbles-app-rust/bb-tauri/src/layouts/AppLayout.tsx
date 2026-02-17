@@ -10,6 +10,7 @@ import { Sidebar } from "./Sidebar";
 import { ConversationList } from "@/pages/ConversationList";
 
 export function AppLayout() {
+  const sidebarWidth = 315;
   const containerStyle: CSSProperties = {
     display: "flex",
     flexDirection: "column",
@@ -17,6 +18,7 @@ export function AppLayout() {
     width: "100vw",
     overflow: "hidden",
     backgroundColor: "var(--color-background)",
+    position: "relative",
   };
 
   const bodyStyle: CSSProperties = {
@@ -31,16 +33,20 @@ export function AppLayout() {
     display: "flex",
     flexDirection: "column",
     backgroundColor: "var(--color-background)",
+    padding: 0,
+    paddingTop: "calc(var(--title-bar-height) - 10px)",
+    boxSizing: "border-box",
+    minHeight: 0, // Allow flex items to shrink below content size
   };
 
   return (
     <div style={containerStyle}>
-      <TitleBar />
+      <TitleBar title="" overlay offsetLeft={sidebarWidth} />
       <div style={bodyStyle}>
-        <Sidebar>
+        <Sidebar width={sidebarWidth}>
           <ConversationList />
         </Sidebar>
-        <div style={contentStyle}>
+        <div style={contentStyle} data-app-content>
           <Outlet />
         </div>
       </div>

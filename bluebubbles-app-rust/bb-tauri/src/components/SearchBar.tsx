@@ -53,7 +53,7 @@ export function SearchBar({
     display: "flex",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "var(--color-surface-variant)",
+    backgroundColor: "var(--color-search-bg)",
     borderRadius: 18,
     padding: "6px 14px",
     margin: 0,
@@ -72,7 +72,7 @@ export function SearchBar({
           cx="6.5"
           cy="6.5"
           r="5"
-          stroke="var(--color-outline)"
+          stroke="var(--color-search-icon)"
           strokeWidth="1.5"
           fill="none"
         />
@@ -81,7 +81,7 @@ export function SearchBar({
           y1="10.5"
           x2="14"
           y2="14"
-          stroke="var(--color-outline)"
+          stroke="var(--color-search-icon)"
           strokeWidth="1.5"
           strokeLinecap="round"
         />
@@ -92,10 +92,15 @@ export function SearchBar({
         onChange={handleChange}
         placeholder={placeholder}
         autoFocus={autoFocus}
+        className="search-input"
         style={{
           flex: 1,
           fontSize: "var(--font-body-medium)",
-          color: "var(--color-on-surface)",
+          color: "var(--color-search-on)",
+          pointerEvents: "auto",
+          userSelect: "text",
+          WebkitUserSelect: "text",
+          caretColor: "var(--color-search-on)",
         }}
         aria-label={placeholder}
       />
@@ -103,7 +108,7 @@ export function SearchBar({
         <button
           onClick={handleClear}
           style={{
-            color: "var(--color-outline)",
+            color: "var(--color-search-icon)",
             fontSize: 14,
             flexShrink: 0,
             padding: "2px 4px",

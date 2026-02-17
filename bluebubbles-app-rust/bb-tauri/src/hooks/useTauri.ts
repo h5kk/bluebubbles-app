@@ -5,6 +5,7 @@
  * from the frontend via Tauri's IPC bridge.
  */
 import { invoke as tauriInvoke, isTauri } from "@tauri-apps/api/core";
+import { useConnectionStore } from "@/store/connectionStore";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 /**
@@ -16,7 +17,19 @@ async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T
       "Not running in Tauri context. Please launch the app with 'npx tauri dev' instead of opening in a browser."
     );
   }
-  return tauriInvoke<T>(cmd, args);
+  try {
+    return await tauriInvoke<T>(cmd, args);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const isConnectionError =
+      /request timeout|error sending request|connection refused|timed out|timeout|network|failed to fetch/i.test(
+        message
+      );
+    if (isConnectionError) {
+      useConnectionStore.getState().setError(message);
+    }
+    throw err;
+  }
 }
 
 /** Server info returned from the connect command. */
@@ -168,6 +181,10 @@ export async function tauriTryAutoConnect(): Promise<ServerInfo | null> {
 
 export async function tauriGetServerInfo(): Promise<ServerInfo> {
   return invoke<ServerInfo>("get_server_info");
+}
+
+export async function tauriDetectLocalhost(): Promise<string | null> {
+  return invoke<string | null>("detect_localhost");
 }
 
 export async function tauriGetChats(

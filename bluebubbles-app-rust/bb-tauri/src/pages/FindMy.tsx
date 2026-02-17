@@ -6,47 +6,18 @@
 import { useState, useEffect, useCallback, useRef, useMemo, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { invoke } from "@tauri-apps/api/core";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { Avatar } from "@/components/Avatar";
 import { useConnectionStore } from "@/store/connectionStore";
+import { useContactStore } from "@/store/contactStore";
+import { useFindMyStore, type FindMyDevice, type FindMyFriend } from "@/store/findMyStore";
+import { tauriGetContacts, type Contact } from "@/hooks/useTauri";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
-
-interface FindMyDevice {
-  id: string;
-  name: string;
-  model: string;
-  device_class: string | null;
-  raw_device_model: string | null;
-  battery_level: number | null;
-  battery_status: string | null;
-  latitude: number | null;
-  longitude: number | null;
-  location_timestamp: number | null;
-  location_type: string | null;
-  address: string | null;
-  is_old_location: boolean;
-  is_online: boolean;
-  is_mac: boolean;
-  this_device: boolean;
-  lost_mode_enabled: boolean;
-}
-
-interface FindMyFriend {
-  id: string;
-  name: string;
-  latitude: number | null;
-  longitude: number | null;
-  address: string | null;
-  last_updated: number | null;
-  status: string | null;
-  locating_in_progress: boolean;
-}
-
-type ActiveTab = "devices" | "people";
+// Types now imported from store
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -136,6 +107,66 @@ function createSvgIcon(color: string, label: string): L.DivIcon {
   });
 }
 
+/** Create a map marker with an avatar image instead of a generic pin. */
+function createAvatarMarker(avatarUrl: string | null, name: string): L.DivIcon {
+  const initials = getInitials(name);
+
+  // If we have an avatar, show it
+  if (avatarUrl) {
+    return L.divIcon({
+      className: "avatar-marker",
+      iconSize: [40, 40],
+      iconAnchor: [20, 40],
+      popupAnchor: [0, -42],
+      html: `
+        <div style="
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          overflow: hidden;
+          border: 3px solid white;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+          background: white;
+        ">
+          <img
+            src="${avatarUrl}"
+            alt="${name}"
+            style="width: 100%; height: 100%; object-fit: cover;"
+          />
+        </div>
+      `,
+    });
+  }
+
+  // Fallback: show initials in a colored circle (matching Avatar component style)
+  return L.divIcon({
+    className: "avatar-marker",
+    iconSize: [40, 40],
+    iconAnchor: [20, 40],
+    popupAnchor: [0, -42],
+    html: `
+      <div style="
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: linear-gradient(180deg, #6B7DB3, #5A6A9E);
+        border: 3px solid white;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 15px;
+        font-weight: 600;
+        font-family: -apple-system, system-ui, sans-serif;
+        letter-spacing: 0.5px;
+      ">
+        ${initials}
+      </div>
+    `,
+  });
+}
+
 // ─── Map Bounds Fitter ──────────────────────────────────────────────────────
 
 function MapBoundsFitter({
@@ -166,201 +197,150 @@ function MapBoundsFitter({
 
 // ─── Main Component ─────────────────────────────────────────────────────────
 
-// ─── Mock Data for Testing ──────────────────────────────────────────────────
-
-const MOCK_DEVICES: FindMyDevice[] = [
-  {
-    id: "test-iphone-1",
-    name: "Hassan's iPhone",
-    model: "iPhone 14 Pro",
-    device_class: "iPhone",
-    raw_device_model: "iPhone15,2",
-    battery_level: 0.85,
-    battery_status: "200",
-    latitude: 37.7749,
-    longitude: -122.4194,
-    location_timestamp: Date.now(),
-    location_type: "GPS",
-    address: "San Francisco, CA",
-    is_old_location: false,
-    is_online: true,
-    is_mac: false,
-    this_device: false,
-    lost_mode_enabled: false,
-  },
-  {
-    id: "test-macbook-1",
-    name: "Hassan's MacBook Pro",
-    model: "MacBook Pro 16\"",
-    device_class: "MacBook",
-    raw_device_model: "MacBookPro18,1",
-    battery_level: 0.65,
-    battery_status: "200",
-    latitude: 40.7128,
-    longitude: -74.0060,
-    location_timestamp: Date.now() - 3600000,
-    location_type: "WiFi",
-    address: "New York, NY",
-    is_old_location: false,
-    is_online: true,
-    is_mac: true,
-    this_device: true,
-    lost_mode_enabled: false,
-  },
-  {
-    id: "test-airpods-1",
-    name: "AirPods Pro",
-    model: "AirPods Pro",
-    device_class: "AirPods",
-    raw_device_model: "AirPodsPro1,1",
-    battery_level: 0.45,
-    battery_status: "200",
-    latitude: 34.0522,
-    longitude: -118.2437,
-    location_timestamp: Date.now() - 7200000,
-    location_type: "Bluetooth",
-    address: "Los Angeles, CA",
-    is_old_location: false,
-    is_online: false,
-    is_mac: false,
-    this_device: false,
-    lost_mode_enabled: false,
-  },
-];
-
-// Set to true to use mock data for testing
-const USE_MOCK_DATA = false;
-
 export function FindMy() {
   const navigate = useNavigate();
   const { status } = useConnectionStore();
 
-  const [activeTab, setActiveTab] = useState<ActiveTab>("devices");
-  const [devices, setDevices] = useState<FindMyDevice[]>([]);
-  const [friends, setFriends] = useState<FindMyFriend[]>([]);
-  const [loadingDevices, setLoadingDevices] = useState(true);
-  const [loadingFriends, setLoadingFriends] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [focusPosition, setFocusPosition] = useState<[number, number] | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Use FindMy store
+  const {
+    selectedTab,
+    loadingDevices,
+    loadingFriends,
+    refreshing,
+    error,
+    selectedId,
+    focusPosition,
+    fetchDevices,
+    fetchFriends,
+    refreshLocations,
+    setSelectedTab,
+    setSelectedId,
+    setFocusPosition,
+    getAllDevices,
+    getAllFriends,
+  } = useFindMyStore();
+
+  // Use contact store for avatar and name lookup
+  const getAvatar = useContactStore((s) => s.getAvatar);
+
+  const devices = getAllDevices();
+  const rawFriends = getAllFriends();
   const listRef = useRef<HTMLDivElement>(null);
 
   const darkMode = useMemo(() => isDarkTheme(), []);
 
+  // Load contacts for name lookup
+  const [contacts, setContacts] = useState<Contact[]>([]);
+
+  useEffect(() => {
+    tauriGetContacts()
+      .then(setContacts)
+      .catch((err) => console.error("FindMy: Failed to load contacts:", err));
+  }, []);
+
+  // Helper: Find contact by handle (phone or email)
+  const findContactByHandle = useCallback((handle: string, contactsList: Contact[]): Contact | null => {
+    return contactsList.find(contact => {
+      try {
+        // Parse phones and emails (they're JSON strings)
+        const phones = JSON.parse(contact.phones || '[]') as string[];
+        const emails = JSON.parse(contact.emails || '[]') as string[];
+
+        // Normalize handle for comparison
+        const normalizedHandle = handle.toLowerCase().replace(/\s/g, '');
+
+        // Check if handle matches any phone (compare digits only)
+        const matchesPhone = phones.some((p: string) =>
+          p.replace(/\D/g, '') === handle.replace(/\D/g, '')
+        );
+
+        // Check if handle matches any email
+        const matchesEmail = emails.some((e: string) =>
+          e.toLowerCase() === normalizedHandle
+        );
+
+        return matchesPhone || matchesEmail;
+      } catch (err) {
+        console.error("Error parsing contact data:", err);
+        return false;
+      }
+    }) ?? null;
+  }, []);
+
+  // Deduplicate friends by contact - group handles that belong to same contact
+  const deduplicatedFriends = useMemo(() => {
+    const friendsArray = rawFriends;
+    const contactMap = new Map<number, FindMyFriend[]>();
+    const noContactList: FindMyFriend[] = [];
+
+    // Group friends by contact ID
+    friendsArray.forEach(friend => {
+      const contact = findContactByHandle(friend.handle, contacts);
+      if (contact?.id) {
+        if (!contactMap.has(contact.id)) {
+          contactMap.set(contact.id, []);
+        }
+        contactMap.get(contact.id)!.push(friend);
+      } else {
+        noContactList.push(friend);
+      }
+    });
+
+    // For each contact, pick the most recent location
+    const deduplicated: FindMyFriend[] = [];
+
+    contactMap.forEach((friends, contactId) => {
+      const contact = contacts.find(c => c.id === contactId)!;
+      // Pick friend with most recent location
+      const mostRecent = friends.sort((a, b) =>
+        (b.last_updated ?? 0) - (a.last_updated ?? 0)
+      )[0];
+
+      // Override name with contact display_name
+      deduplicated.push({
+        ...mostRecent,
+        name: contact.display_name,
+      });
+    });
+
+    // Add friends without matching contacts
+    deduplicated.push(...noContactList);
+
+    // Sort by most recent
+    return deduplicated.sort((a, b) =>
+      (b.last_updated ?? 0) - (a.last_updated ?? 0)
+    );
+  }, [rawFriends, contacts, findContactByHandle]);
+
+  // Enrich deduplicated friends with contact avatar URLs
+  const friends: (FindMyFriend & { avatarUrl?: string })[] = useMemo(() => {
+    return deduplicatedFriends.map((friend) => {
+      const avatarUrl = getAvatar(friend.handle);
+      return {
+        ...friend,
+        avatarUrl: avatarUrl ?? undefined,
+      };
+    });
+  }, [deduplicatedFriends, getAvatar]);
+
   // ── Data Fetching ───────────────────────────────────────────────────────
 
-  const fetchDevices = useCallback(async () => {
-    if (status !== "connected") {
-      console.log("FindMy: Not connected, skipping device fetch");
-      setLoadingDevices(false);
-      return;
-    }
-
-    // Use mock data if enabled (for testing UI without server)
-    if (USE_MOCK_DATA) {
-      console.log("FindMy: Using mock data for testing");
-      setTimeout(() => {
-        setDevices(MOCK_DEVICES);
-        setLoadingDevices(false);
-      }, 500);
-      return;
-    }
-
-    try {
-      console.log("FindMy: Fetching devices from server...");
-      const result = await invoke<FindMyDevice[]>("get_findmy_devices");
-      console.log("FindMy devices response:", result);
-      console.log("Number of devices:", result?.length);
-      console.log("Devices state after set:", result);
-      setDevices(result);
-      setError(null);
-    } catch (err) {
-      console.error("FindMy: Error fetching devices:", err);
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoadingDevices(false);
-    }
-  }, [status]);
-
-  const fetchFriends = useCallback(async () => {
-    if (status !== "connected") {
-      console.log("FindMy: Not connected, skipping friends fetch");
-      setLoadingFriends(false);
-      return;
-    }
-    try {
-      console.log("FindMy: Fetching friends from server...");
-      const result = await invoke<FindMyFriend[]>("get_findmy_friends");
-      console.log("FindMy friends response:", result);
-      console.log("Number of friends:", result?.length);
-      setFriends(result);
-    } catch (err) {
-      // Friends might not be available on all servers, don't treat as fatal
-      console.warn("FindMy: Failed to fetch friends:", err);
-    } finally {
-      setLoadingFriends(false);
-    }
-  }, [status]);
-
-  const handleRefresh = useCallback(async () => {
-    console.log("FindMy: Refreshing", activeTab);
-    setRefreshing(true);
-    setError(null);
-    try {
-      if (activeTab === "devices") {
-        console.log("FindMy: Refreshing devices from server...");
-        const result = await invoke<FindMyDevice[]>("refresh_findmy_devices");
-        console.log("FindMy refresh devices response:", result);
-        console.log("Number of devices after refresh:", result?.length);
-        setDevices(result);
-      } else {
-        console.log("FindMy: Refreshing friends from server...");
-        const result = await invoke<FindMyFriend[]>("refresh_findmy_friends");
-        console.log("FindMy refresh friends response:", result);
-        console.log("Number of friends after refresh:", result?.length);
-        setFriends(result);
-      }
-    } catch (err) {
-      console.error("FindMy: Error during refresh:", err);
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setRefreshing(false);
-    }
-  }, [activeTab]);
-
+  // Fetch data on mount if connected
   useEffect(() => {
-    fetchDevices();
-    fetchFriends();
-  }, [fetchDevices, fetchFriends]);
-
-  // Clear focus when switching tabs
-  useEffect(() => {
-    setFocusPosition(null);
-    setSelectedId(null);
-  }, [activeTab]);
+    if (status === "connected") {
+      fetchDevices();
+      fetchFriends();
+    }
+  }, [status, fetchDevices, fetchFriends]);
 
   // ── Computed Values ─────────────────────────────────────────────────────
 
-  const loading = activeTab === "devices" ? loadingDevices : loadingFriends;
-  const items = activeTab === "devices" ? devices : friends;
-
-  // Debug logging for render state
-  useEffect(() => {
-    console.log("FindMy Render State:", {
-      activeTab,
-      loading,
-      itemsCount: items.length,
-      devicesCount: devices.length,
-      friendsCount: friends.length,
-      status,
-      error,
-    });
-  }, [activeTab, loading, items.length, devices.length, friends.length, status, error]);
+  const loading = selectedTab === "devices" ? loadingDevices : loadingFriends;
+  const items = selectedTab === "devices" ? devices : friends;
 
   const allMapPositions = useMemo((): [number, number][] => {
     const positions: [number, number][] = [];
-    if (activeTab === "devices") {
+    if (selectedTab === "devices") {
       devices.forEach((d) => {
         if (d.latitude != null && d.longitude != null) {
           positions.push([d.latitude, d.longitude]);
@@ -374,7 +354,7 @@ export function FindMy() {
       });
     }
     return positions;
-  }, [activeTab, devices, friends]);
+  }, [selectedTab, devices, friends]);
 
   const deviceMarkerIcon = useMemo(
     () => createSvgIcon("#2C6BED", "\uD83D\uDCCD"),
@@ -389,12 +369,12 @@ export function FindMy() {
 
   const handleCardClick = useCallback(
     (id: string, lat: number | null, lng: number | null) => {
-      setSelectedId((prev) => (prev === id ? null : id));
+      setSelectedId(id);
       if (lat != null && lng != null) {
         setFocusPosition([lat, lng]);
       }
     },
-    []
+    [setSelectedId, setFocusPosition]
   );
 
   // ── Map Tile URL ────────────────────────────────────────────────────────
@@ -477,7 +457,7 @@ export function FindMy() {
           <h1 style={titleStyle}>Find My</h1>
         </div>
         <button
-          onClick={handleRefresh}
+          onClick={refreshLocations}
           disabled={refreshing}
           style={{
             padding: "6px 14px",
@@ -512,16 +492,16 @@ export function FindMy() {
         }}
       >
         <TabButton
-          label="Devices"
-          count={devices.length}
-          isActive={activeTab === "devices"}
-          onClick={() => setActiveTab("devices")}
-        />
-        <TabButton
           label="People"
           count={friends.length}
-          isActive={activeTab === "people"}
-          onClick={() => setActiveTab("people")}
+          isActive={selectedTab === "people"}
+          onClick={() => setSelectedTab("people")}
+        />
+        <TabButton
+          label="Devices"
+          count={devices.length}
+          isActive={selectedTab === "devices"}
+          onClick={() => setSelectedTab("devices")}
         />
       </div>
 
@@ -571,7 +551,7 @@ export function FindMy() {
           />
 
           {/* Device markers */}
-          {activeTab === "devices" &&
+          {selectedTab === "devices" &&
             devices
               .filter((d) => d.latitude != null && d.longitude != null)
               .map((d) => (
@@ -613,14 +593,14 @@ export function FindMy() {
               ))}
 
           {/* Friend markers */}
-          {activeTab === "people" &&
+          {selectedTab === "people" &&
             friends
               .filter((f) => f.latitude != null && f.longitude != null)
               .map((f) => (
                 <Marker
                   key={`friend-${f.id || f.name}`}
                   position={[f.latitude!, f.longitude!]}
-                  icon={friendMarkerIcon}
+                  icon={createAvatarMarker(f.avatarUrl ?? null, f.name)}
                 >
                   <Popup>
                     <div style={{ minWidth: 160 }}>
@@ -720,7 +700,7 @@ export function FindMy() {
               }}
             >
               <span style={{ fontSize: 40 }}>
-                {activeTab === "devices" ? "\uD83D\uDCCD" : "\uD83D\uDC65"}
+                {selectedTab === "devices" ? "\uD83D\uDCCD" : "\uD83D\uDC65"}
               </span>
               <span
                 style={{
@@ -728,7 +708,7 @@ export function FindMy() {
                   fontWeight: 500,
                 }}
               >
-                {activeTab === "devices"
+                {selectedTab === "devices"
                   ? "No Devices Found"
                   : "No People Found"}
               </span>
@@ -740,7 +720,7 @@ export function FindMy() {
                   lineHeight: 1.5,
                 }}
               >
-                {activeTab === "devices"
+                {selectedTab === "devices"
                   ? "Make sure Find My is enabled on your Mac and the BlueBubbles server has access to FindMy data."
                   : "Your Find My friends will appear here. Make sure location sharing is enabled in Find My on your Mac."}
               </span>
@@ -749,7 +729,7 @@ export function FindMy() {
         </AnimatePresence>
 
         {/* Device Cards */}
-        {activeTab === "devices" && !loading && devices.length > 0 && (
+        {selectedTab === "devices" && !loading && devices.length > 0 && (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {devices.map((device) => (
               <DeviceCard
@@ -769,7 +749,7 @@ export function FindMy() {
         )}
 
         {/* Friend Cards */}
-        {activeTab === "people" && !loading && friends.length > 0 && (
+        {selectedTab === "people" && !loading && friends.length > 0 && (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {friends.map((friend) => (
               <FriendCard
@@ -1106,7 +1086,7 @@ function DeviceCard({ device, isSelected, onClick }: DeviceCardProps) {
 // ─── Friend Card ────────────────────────────────────────────────────────────
 
 interface FriendCardProps {
-  friend: FindMyFriend;
+  friend: FindMyFriend & { avatarUrl?: string };
   isSelected: boolean;
   onClick: () => void;
 }
@@ -1115,7 +1095,6 @@ function FriendCard({ friend, isSelected, onClick }: FriendCardProps) {
   const [hovered, setHovered] = useState(false);
 
   const hasLocation = friend.latitude != null && friend.longitude != null;
-  const initials = getInitials(friend.name);
   const sColor = statusColor(friend.status);
   const sLabel = statusLabel(friend.status);
 
@@ -1141,30 +1120,15 @@ function FriendCard({ friend, isSelected, onClick }: FriendCardProps) {
         gap: 12,
       }}
     >
-      {/* Avatar */}
-      <div
-        style={{
-          width: 36,
-          height: 36,
-          borderRadius: "50%",
-          background: "linear-gradient(135deg, #34C759, #30B550)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          flexShrink: 0,
-          position: "relative",
-        }}
-      >
-        <span
-          style={{
-            fontSize: 14,
-            fontWeight: 600,
-            color: "#fff",
-            letterSpacing: 0.5,
-          }}
-        >
-          {initials}
-        </span>
+      {/* Avatar with status dot */}
+      <div style={{ position: "relative", flexShrink: 0 }}>
+        <Avatar
+          name={friend.name}
+          address={friend.handle}
+          size={40}
+          avatarUrl={friend.avatarUrl}
+          showInitials
+        />
         {/* Status dot on avatar */}
         <span
           style={{

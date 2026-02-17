@@ -2,6 +2,15 @@
  * Demo data generators for showcase mode
  */
 
+import demoAvatar1 from "@/assets/demo-avatars/demo-avatar-1.jpg";
+import demoAvatar2 from "@/assets/demo-avatars/demo-avatar-2.jpg";
+import demoAvatar3 from "@/assets/demo-avatars/demo-avatar-3.jpg";
+import demoAvatar4 from "@/assets/demo-avatars/demo-avatar-4.jpg";
+import demoAvatar5 from "@/assets/demo-avatars/demo-avatar-5.jpg";
+import demoAvatar6 from "@/assets/demo-avatars/demo-avatar-6.jpg";
+import demoAvatar7 from "@/assets/demo-avatars/demo-avatar-7.jpg";
+import demoAvatar8 from "@/assets/demo-avatars/demo-avatar-8.jpg";
+
 const DEMO_FIRST_NAMES = [
   "Alex", "Jordan", "Taylor", "Morgan", "Casey", "Riley", "Avery", "Quinn",
   "Sam", "Jamie", "Cameron", "Reese", "Blake", "Dakota", "Skylar", "Peyton",
@@ -47,6 +56,17 @@ const AVATAR_COLORS = [
   "#FF6B6B", "#4ECDC4", "#45B7D1", "#FFA07A", "#98D8C8",
   "#F7DC6F", "#BB8FCE", "#85C1E2", "#F8B739", "#52B788",
   "#FF8C94", "#A8DADC", "#F1C40F", "#E74C3C", "#3498DB"
+];
+
+const DEMO_AVATAR_PHOTOS = [
+  demoAvatar1,
+  demoAvatar2,
+  demoAvatar3,
+  demoAvatar4,
+  demoAvatar5,
+  demoAvatar6,
+  demoAvatar7,
+  demoAvatar8,
 ];
 
 /**
@@ -102,6 +122,14 @@ export function getDemoAvatarColor(id: string): string {
 }
 
 /**
+ * Pick a consistent demo avatar photo for a contact
+ */
+export function getDemoAvatarPhoto(id: string): string {
+  const index = Math.floor(seededRandom(`${id}_photo`) * DEMO_AVATAR_PHOTOS.length);
+  return DEMO_AVATAR_PHOTOS[index];
+}
+
+/**
  * Generate a demo message snippet from real message text
  */
 export function getDemoMessageSnippet(realText: string | null | undefined): string {
@@ -145,6 +173,16 @@ export function generateDemoAvatar(name: string, id: string): string {
 }
 
 /**
+ * Resolve demo avatar URL (photo first, then initials fallback)
+ */
+export function getDemoAvatarUrl(name: string, id: string): string {
+  if (DEMO_AVATAR_PHOTOS.length > 0) {
+    return getDemoAvatarPhoto(id || name);
+  }
+  return generateDemoAvatar(name, id || name);
+}
+
+/**
  * Apply demo mode transformations to a chat object
  */
 export function applyDemoChatData(chat: any): any {
@@ -152,7 +190,7 @@ export function applyDemoChatData(chat: any): any {
 
   const isGroup = chat.participants && chat.participants.length > 1;
   const demoName = getDemoName(chat.display_name || chat.guid, isGroup);
-  const demoAvatar = generateDemoAvatar(demoName, chat.guid || "default");
+  const demoAvatar = getDemoAvatarUrl(demoName, chat.guid || "default");
 
   return {
     ...chat,
@@ -187,7 +225,7 @@ export function applyDemoHandleData(handle: any): any {
   if (!handle) return handle;
 
   const demoName = getDemoName(handle.display_name || handle.uncanonicalized_id);
-  const demoAvatar = generateDemoAvatar(demoName, handle.address || handle.row_id?.toString() || "default");
+  const demoAvatar = getDemoAvatarUrl(demoName, handle.address || handle.row_id?.toString() || "default");
 
   return {
     ...handle,

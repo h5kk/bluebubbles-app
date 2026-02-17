@@ -7,6 +7,7 @@ import {
   useRef,
   useCallback,
   useMemo,
+  useState,
   type CSSProperties,
 } from "react";
 import { useParams, useNavigate } from "react-router-dom";
@@ -19,10 +20,15 @@ import { InputBar } from "@/components/InputBar";
 import { Avatar, GroupAvatar } from "@/components/Avatar";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { LoadingLine } from "@/components/LoadingLine";
+import { ContextMenu, type ContextMenuItem } from "@/components/ContextMenu";
+import { DragDropZone } from "@/components/DragDropZone";
+import { ImageLightbox } from "@/components/ImageLightbox";
 import type { Message } from "@/hooks/useTauri";
-import { tauriSendTypingIndicator } from "@/hooks/useTauri";
+import { tauriSendReaction, tauriSendTypingIndicator } from "@/hooks/useTauri";
 import { parseBBDateMs } from "@/utils/dateUtils";
-import { getDemoName, getDemoMessageSnippet, generateDemoAvatar } from "@/utils/demoData";
+import { getDemoName, getDemoMessageSnippet, getDemoAvatarUrl } from "@/utils/demoData";
+import { useAttachmentStore } from "@/store/attachmentStore";
+import { useContactStore } from "@/store/contactStore";
 
 export function ConversationView() {
   const { chatGuid } = useParams<{ chatGuid: string }>();
@@ -39,12 +45,23 @@ export function ConversationView() {
     sendMessage,
   } = useMessageStore();
   const { chats, selectChat, markChatRead } = useChatStore();
-  const { sendWithReturn, settings, demoMode } = useSettingsStore();
+  const { sendWithReturn, settings, demoMode, headerAvatarInline } = useSettingsStore();
   const { serverInfo } = useConnectionStore();
+  const { addPendingAttachment } = useAttachmentStore();
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const viewRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isTypingRef = useRef(false);
+
+  // Context menu state
+  const [contextMenu, setContextMenu] = useState<{
+    open: boolean;
+    x: number;
+    y: number;
+    message: Message | null;
+  }>({ open: false, x: 0, y: 0, message: null });
+  const [threadOriginGuid, setThreadOriginGuid] = useState<string | null>(null);
 
   // Check if typing indicators should be sent
   const shouldSendTyping =
@@ -167,6 +184,168 @@ export function ConversationView() {
     []
   );
 
+  // Message context menu handler
+  const handleMessageContextMenu = useCallback(
+    (message: Message, event: React.MouseEvent) => {
+      setContextMenu({
+        open: true,
+        x: event.clientX,
+        y: event.clientY,
+        message,
+      });
+    },
+    []
+  );
+
+  const closeContextMenu = useCallback(() => {
+    setContextMenu((prev) => ({ ...prev, open: false }));
+  }, []);
+
+  // Exit thread mode when clicking outside the conversation view
+  useEffect(() => {
+    if (!threadOriginGuid) return;
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest?.("[data-context-menu]")) return;
+      if (viewRef.current && target && !viewRef.current.contains(target)) {
+        setThreadOriginGuid(null);
+      }
+    };
+    window.addEventListener("mousedown", handlePointerDown);
+    return () => window.removeEventListener("mousedown", handlePointerDown);
+  }, [threadOriginGuid]);
+
+  // Context menu actions
+  const handleCopyMessage = useCallback(() => {
+    if (contextMenu.message?.text) {
+      navigator.clipboard.writeText(contextMenu.message.text);
+    }
+  }, [contextMenu.message]);
+
+  const handleReplyToMessage = useCallback(() => {
+    const origin =
+      contextMenu.message?.thread_originator_guid ||
+      contextMenu.message?.associated_message_guid ||
+      contextMenu.message?.guid ||
+      null;
+    setThreadOriginGuid(origin);
+  }, [contextMenu.message]);
+
+  const handleReactToMessage = useCallback((reaction: string) => {
+    if (!decodedGuid || !contextMenu.message?.guid) return;
+    const messageText = contextMenu.message.text ?? "";
+    tauriSendReaction(decodedGuid, messageText, contextMenu.message.guid, reaction).catch(() => {});
+  }, [contextMenu.message, decodedGuid]);
+
+  const handleReaction = useCallback(
+    (messageGuid: string, reaction: string) => {
+      if (!decodedGuid) return;
+      const message = messages.find((m) => m.guid === messageGuid);
+      if (!message) return;
+      const messageText = message.text ?? "";
+      tauriSendReaction(decodedGuid, messageText, messageGuid, reaction).catch(() => {});
+    },
+    [decodedGuid, messages]
+  );
+
+  const handleFileDrop = useCallback(
+    (files: File[]) => {
+      if (!decodedGuid) return;
+      files.forEach((file) => {
+        if (file.type.startsWith("image/")) {
+          addPendingAttachment(file, decodedGuid);
+        } else {
+          handleSendAttachment(file);
+        }
+      });
+    },
+    [decodedGuid, addPendingAttachment, handleSendAttachment]
+  );
+
+  const getContactName = useCallback(
+    (handleId: number | null): string => {
+      if (!handleId) return "Unknown";
+      const participant = chatData?.participants.find((p) => p.id === handleId);
+      if (!participant) return "Unknown";
+
+      // Use participant names from chatPreview if available
+      const participantIndex = chatData?.participants.findIndex((p) => p.id === handleId);
+      if (participantIndex !== undefined && participantIndex >= 0 && chatPreview?.participant_names[participantIndex]) {
+        const name = chatPreview.participant_names[participantIndex];
+        return demoMode ? getDemoName(name) : name;
+      }
+
+      return participant.formatted_address || participant.address || "Unknown";
+    },
+    [chatData, chatPreview, demoMode]
+  );
+
+  // Build message context menu items
+  const messageContextMenuItems: ContextMenuItem[] = useMemo(() => {
+    if (!contextMenu.message) return [];
+
+    const items: ContextMenuItem[] = [];
+
+    if (contextMenu.message.text) {
+      items.push({
+        label: "Copy",
+        icon: "📋",
+        onClick: handleCopyMessage,
+      });
+    }
+
+    items.push({
+      label: "Reply",
+      icon: "↩️",
+      onClick: handleReplyToMessage,
+    });
+
+    items.push({ label: "", onClick: () => {}, divider: true });
+
+    items.push({
+      label: "❤️ Love",
+      onClick: () => handleReactToMessage("love"),
+    });
+
+    items.push({
+      label: "👍 Like",
+      onClick: () => handleReactToMessage("like"),
+    });
+
+    items.push({
+      label: "😂 Laugh",
+      onClick: () => handleReactToMessage("laugh"),
+    });
+
+    items.push({
+      label: "❗ Emphasize",
+      onClick: () => handleReactToMessage("emphasize"),
+    });
+
+    return items;
+  }, [contextMenu.message, handleCopyMessage, handleReplyToMessage, handleReactToMessage]);
+
+  const threadOriginMessage = useMemo(() => {
+    if (!threadOriginGuid) return null;
+    return messages.find((msg) => msg.guid === threadOriginGuid) ?? null;
+  }, [messages, threadOriginGuid]);
+
+  const threadMessageGuids = useMemo(() => {
+    if (!threadOriginGuid) return new Set<string>();
+    const set = new Set<string>();
+    for (const msg of messages) {
+      if (!msg.guid) continue;
+      const inThread =
+        msg.guid === threadOriginGuid ||
+        msg.thread_originator_guid === threadOriginGuid ||
+        msg.associated_message_guid === threadOriginGuid;
+      if (inThread) {
+        set.add(msg.guid);
+      }
+    }
+    return set;
+  }, [messages, threadOriginGuid]);
+
   // Group messages by sender for bubble grouping
   const groupedMessages = useMemo(() => {
     return messages.map((msg, idx) => {
@@ -224,10 +403,13 @@ export function ConversationView() {
   );
 
   const containerStyle: CSSProperties = {
-    display: "flex",
-    flexDirection: "column",
+    display: "grid",
+    gridTemplateRows: "auto 1fr auto",
+    flex: 1,
     height: "100%",
+    minHeight: 0, // Critical for flex children with overflow
     overflow: "hidden",
+    backgroundColor: "var(--color-surface)",
   };
 
   const headerStyle: CSSProperties = {
@@ -237,9 +419,9 @@ export function ConversationView() {
     padding: "10px 16px",
     borderBottom: "1px solid var(--color-surface-variant)",
     backgroundColor: "var(--color-surface)",
-    flexShrink: 0,
     position: "relative",
     minHeight: 56,
+    gridRow: 1,
   };
 
   // Empty state when no chat is selected
@@ -273,7 +455,7 @@ export function ConversationView() {
   }
 
   return (
-    <div style={containerStyle}>
+    <div style={containerStyle} ref={viewRef} data-conversation-view>
       {/* Chat header - centered avatar and name */}
       <div
         style={headerStyle}
@@ -285,9 +467,9 @@ export function ConversationView() {
         <div
           style={{
             display: "flex",
-            flexDirection: "column",
+            flexDirection: headerAvatarInline ? "row" : "column",
             alignItems: "center",
-            gap: 2,
+            gap: headerAvatarInline ? 10 : 2,
             cursor: "pointer",
           }}
         >
@@ -298,61 +480,75 @@ export function ConversationView() {
                 return {
                   name: demoMode ? getDemoName(participantName) : participantName,
                   address: p.address,
-                  avatarUrl: demoMode ? generateDemoAvatar(getDemoName(participantName), p.address) : undefined,
+                  avatarUrl: demoMode ? getDemoAvatarUrl(getDemoName(participantName), p.address) : undefined,
                 };
               })}
-              size={32}
+              size={38}
             />
           ) : (
             <Avatar
               name={title}
               address={chatData?.participants[0]?.address ?? decodedGuid}
-              size={32}
-              avatarUrl={demoMode ? generateDemoAvatar(title, chatData?.participants[0]?.address ?? decodedGuid) : undefined}
+              size={38}
+              avatarUrl={demoMode ? getDemoAvatarUrl(title, chatData?.participants[0]?.address ?? decodedGuid) : undefined}
             />
           )}
           <div
             style={{
               display: "flex",
-              alignItems: "center",
-              gap: 4,
+              flexDirection: "column",
+              alignItems: headerAvatarInline ? "flex-start" : "center",
+              gap: 2,
             }}
           >
-            <span
+            <div
               style={{
-                fontSize: 13,
-                fontWeight: 600,
-                color: "var(--color-on-surface)",
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
               }}
             >
-              {title}
-            </span>
-            {/* Chevron */}
-            <svg width="8" height="12" viewBox="0 0 8 12" fill="none" style={{ opacity: 0.4 }}>
-              <path d="M1.5 1L6.5 6L1.5 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+              <span
+                style={{
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: "var(--color-on-surface)",
+                }}
+              >
+                {title}
+              </span>
+              {/* Chevron */}
+              <svg width="8" height="12" viewBox="0 0 8 12" fill="none" style={{ opacity: 0.4 }}>
+                <path d="M1.5 1L6.5 6L1.5 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+            {chatData && (
+              <span
+                style={{
+                  fontSize: 11,
+                  color: isImessage && !isGroup ? "#007AFF" : "var(--color-outline)",
+                  fontWeight: 500,
+                }}
+              >
+                {isGroup
+                  ? `${chatData.participants.length} participants`
+                  : isImessage
+                    ? "iMessage"
+                    : "SMS"}
+              </span>
+            )}
+            {/* Blue progress line under contact info when sending */}
+            <LoadingLine
+              visible={sending}
+              height={2}
+              style={{
+                borderRadius: 1,
+                marginTop: chatData ? 2 : 4,
+                width: headerAvatarInline ? 56 : 40,
+                alignSelf: headerAvatarInline ? "flex-start" : "center",
+              }}
+            />
           </div>
-          {chatData && (
-            <span
-              style={{
-                fontSize: 11,
-                color: isImessage && !isGroup ? "#007AFF" : "var(--color-outline)",
-                fontWeight: 500,
-              }}
-            >
-              {isGroup
-                ? `${chatData.participants.length} participants`
-                : isImessage
-                  ? "iMessage"
-                  : "SMS"}
-            </span>
-          )}
-          {/* Blue progress line under contact photo when sending */}
-          <LoadingLine
-            visible={sending}
-            height={2}
-            style={{ borderRadius: 1, marginTop: 2, width: 40 }}
-          />
         </div>
 
         {/* FaceTime / Video call button - top right */}
@@ -383,17 +579,21 @@ export function ConversationView() {
       </div>
 
       {/* Messages area */}
-      <div
-        ref={scrollContainerRef}
-        onScroll={handleScroll}
-        style={{
-          flex: 1,
-          overflow: "auto",
-          display: "flex",
-          flexDirection: "column",
-          padding: "8px 0",
-        }}
-      >
+      <DragDropZone onFileDrop={handleFileDrop} accept="image/*,video/*,audio/*,.pdf,.doc,.docx">
+        <div
+          ref={scrollContainerRef}
+          onScroll={handleScroll}
+          data-chat-scroll
+          style={{
+            overflowY: "auto",
+            overflowX: "hidden",
+            display: "flex",
+            flexDirection: "column",
+            padding: "8px 0",
+            minHeight: 0,
+            flex: 1,
+          }}
+        >
         {/* Load more spinner */}
         {loading && hasMore && (
           <div
@@ -407,19 +607,95 @@ export function ConversationView() {
           </div>
         )}
 
+        {threadOriginGuid && (
+          <div
+            style={{
+              position: "sticky",
+              top: 0,
+              zIndex: 2,
+              padding: "8px 12px",
+              marginBottom: 6,
+              background: "color-mix(in srgb, var(--color-surface) 92%, transparent)",
+              borderBottom: "1px solid var(--color-surface-variant)",
+              backdropFilter: "blur(6px)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+            }}
+          >
+            <div style={{ minWidth: 0 }}>
+              <div
+                style={{
+                  fontSize: "var(--font-body-medium)",
+                  fontWeight: 600,
+                  color: "var(--color-on-surface)",
+                }}
+              >
+                Reply Thread
+              </div>
+              <div
+                style={{
+                  fontSize: "var(--font-body-small)",
+                  color: "var(--color-on-surface-variant)",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  maxWidth: 360,
+                }}
+              >
+                {threadOriginMessage?.text ?? "Original message"}
+              </div>
+            </div>
+            <button
+              onClick={() => setThreadOriginGuid(null)}
+              style={{
+                padding: "6px 10px",
+                borderRadius: 8,
+                border: "1px solid var(--color-outline)",
+                background: "var(--color-surface-variant)",
+                color: "var(--color-on-surface)",
+                cursor: "pointer",
+                fontSize: "var(--font-body-small)",
+              }}
+            >
+              Show All
+            </button>
+          </div>
+        )}
+
         {/* Messages rendered oldest-first (reversed view is memoized in groupedMessages) */}
-        {reversedMessages.map((item) => (
-          <MessageBubble
-            key={item.message.guid ?? item.message.id}
-            message={item.message}
-            isGroupChat={isGroup}
-            senderName={item.senderName}
-            isFirstInGroup={item.isFirstInGroup}
-            isLastInGroup={item.isLastInGroup}
-            isImessage={isImessage}
-            showTimestamp={item.showTimestamp}
-          />
-        ))}
+        {reversedMessages.map((item) => {
+          const guid = item.message.guid ?? "";
+          const inThread = !threadOriginGuid || (guid && threadMessageGuids.has(guid));
+          return (
+            <div
+              key={item.message.guid ?? item.message.id}
+              style={{
+                opacity: inThread ? 1 : 0.35,
+                filter: inThread ? "none" : "grayscale(0.2)",
+                transition: "opacity 150ms ease",
+                cursor: threadOriginGuid && !inThread ? "pointer" : "default",
+              }}
+              onClick={() => {
+                if (threadOriginGuid && !inThread) setThreadOriginGuid(null);
+              }}
+            >
+              <MessageBubble
+                message={item.message}
+                isGroupChat={isGroup}
+                senderName={item.senderName}
+                isFirstInGroup={item.isFirstInGroup}
+                isLastInGroup={item.isLastInGroup}
+                isImessage={isImessage}
+                showTimestamp={item.showTimestamp}
+                onContextMenu={handleMessageContextMenu}
+                onReaction={handleReaction}
+                getContactName={getContactName}
+              />
+            </div>
+          );
+        })}
 
         {/* Loading initial messages */}
         {loading && messages.length === 0 && (
@@ -451,17 +727,33 @@ export function ConversationView() {
             No messages yet. Say hello!
           </div>
         )}
-      </div>
+        </div>
+      </DragDropZone>
 
       {/* Input bar */}
-      <InputBar
-        onSend={handleSend}
-        onSendAttachment={handleSendAttachment}
-        onTyping={handleTypingChange}
-        sending={sending}
-        sendWithReturn={sendWithReturn}
-        placeholder={isImessage ? "iMessage" : "Text Message"}
+      <div style={{ gridRow: 3, minHeight: "var(--input-bar-min-height)" }}>
+        <InputBar
+          onSend={handleSend}
+          onSendAttachment={handleSendAttachment}
+          onTyping={handleTypingChange}
+          sending={sending}
+          sendWithReturn={sendWithReturn}
+          placeholder={isImessage ? "iMessage" : "Text Message"}
+          chatGuid={decodedGuid}
+        />
+      </div>
+
+      {/* Message context menu */}
+      <ContextMenu
+        open={contextMenu.open}
+        x={contextMenu.x}
+        y={contextMenu.y}
+        items={messageContextMenuItems}
+        onClose={closeContextMenu}
       />
+
+      {/* Image Lightbox */}
+      <ImageLightbox />
     </div>
   );
 }

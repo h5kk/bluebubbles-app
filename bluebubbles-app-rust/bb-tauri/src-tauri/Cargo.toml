@@ -13,6 +13,7 @@ tauri-build = { version = "2", features = [] }
 # Tauri
 tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-shell = "2"
+tauri-plugin-dialog = "2"
 
 # Workspace crates
 bb-core = { path = "../../bb-core" }
@@ -43,9 +44,15 @@ chrono.workspace = true
 dirs.workspace = true
 base64.workspace = true
 
+# Database
+rusqlite.workspace = true
+
 # Regex for OTP detection
 regex.workspace = true
 lazy_static.workspace = true
+
+# UUID generation for temp GUIDs
+uuid = { version = "1.10", features = ["v4"] }
 
 [features]
 default = ["custom-protocol"]

@@ -11,3 +11,4 @@ pub mod scheduled_message;
 pub mod attributed_body;
 pub mod payload_data;
 pub mod settings;
+pub mod findmy;

@@ -13,10 +13,12 @@ interface LoadingLineProps {
   style?: CSSProperties;
 }
 
+const DEFAULT_HEIGHT = 2;
+
 export function LoadingLine({
   visible,
   color = "#007AFF",
-  height = 2,
+  height = DEFAULT_HEIGHT,
   style,
 }: LoadingLineProps) {
   return (

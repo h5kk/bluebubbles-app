@@ -10,6 +10,7 @@ import { LoadingLine } from "@/components/LoadingLine";
 import { useChatStore } from "@/store/chatStore";
 import { useConnectionStore } from "@/store/connectionStore";
 import { useSettingsStore } from "@/store/settingsStore";
+import { useMessageStore } from "@/store/messageStore";
 import { tauriSyncFull, tauriSyncMessages } from "@/hooks/useTauri";
 
 interface SidebarProps {
@@ -17,24 +18,41 @@ interface SidebarProps {
   children: React.ReactNode;
 }
 
-export function Sidebar({ width = 340, children }: SidebarProps) {
+export function Sidebar({ width = 315, children }: SidebarProps) {
   const navigate = useNavigate();
   const { searchQuery, setSearchQuery, refreshChats, isRefreshing, lastRefreshTime } = useChatStore();
-  const { status } = useConnectionStore();
-  const { demoMode, updateSetting } = useSettingsStore();
+  const { status, error, errorAt } = useConnectionStore();
+  const { demoMode, debugMode, updateSetting, themeMode, setThemeMode } = useSettingsStore();
+  const messageCount = useMessageStore((s) => s.messages.length);
+  const activeChatGuid = useMessageStore((s) => s.chatGuid);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [debugMenuOpen, setDebugMenuOpen] = useState(false);
+  const chats = useChatStore((s) => s.chats);
 
-  const sidebarStyle: CSSProperties = {
+  // Determine if current theme is dark
+  const isDark = themeMode === "dark" ||
+    (themeMode === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+
+  const wrapperStyle: CSSProperties = {
     width,
     minWidth: width,
     height: "100%",
+    boxSizing: "border-box",
+    padding: "8px 0 8px 8px",
+    display: "flex",
+  };
+
+  const sidebarStyle: CSSProperties = {
+    flex: 1,
     display: "flex",
     flexDirection: "column",
     backgroundColor: "var(--color-background)",
-    borderRight: "1px solid var(--color-surface-variant)",
+    border: "1px solid var(--color-surface-variant)",
     overflow: "hidden",
-    borderTopRightRadius: 10,
-    borderBottomRightRadius: 10,
+    borderRadius: 12,
+    boxShadow: "var(--elevation-2)",
+    position: "relative",
+    zIndex: 2,
   };
 
   const topRowStyle: CSSProperties = {
@@ -45,21 +63,157 @@ export function Sidebar({ width = 340, children }: SidebarProps) {
     flexShrink: 0,
   };
 
+  const handleCopyDiagnostics = useCallback(async () => {
+    const rootStyles = getComputedStyle(document.documentElement);
+    const textInput = document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Message input"]');
+    const inputWrapper = textInput?.parentElement;
+    const inputBar = document.querySelector<HTMLElement>("[data-input-bar]");
+    const chatScroll = document.querySelector<HTMLElement>("[data-chat-scroll]");
+    const convoView = document.querySelector<HTMLElement>("[data-conversation-view]");
+    const contentArea = document.querySelector<HTMLElement>("[data-app-content]");
+
+    const inputRect = textInput?.getBoundingClientRect();
+    const wrapperRect = inputWrapper?.getBoundingClientRect();
+    const inputBarRect = inputBar?.getBoundingClientRect();
+    const chatScrollRect = chatScroll?.getBoundingClientRect();
+    const convoRect = convoView?.getBoundingClientRect();
+    const contentRect = contentArea?.getBoundingClientRect();
+    const inputStyles = textInput ? getComputedStyle(textInput) : null;
+    const convoStyles = convoView ? getComputedStyle(convoView) : null;
+
+    const lines = [
+      `BlueBubbles Layout Diagnostics`,
+      `Timestamp: ${new Date().toISOString()}`,
+      ``,
+      `Window: ${window.innerWidth}x${window.innerHeight} @${window.devicePixelRatio}x`,
+      `Theme Mode: ${themeMode}`,
+      `Theme: light=${useSettingsStore.getState().selectedLightTheme} dark=${useSettingsStore.getState().selectedDarkTheme}`,
+      `Skin: ${useSettingsStore.getState().skin}`,
+      `Active Chat: ${activeChatGuid ?? "none"}`,
+      `Messages (loaded): ${messageCount}`,
+      `Chats (loaded): ${chats.length}`,
+      ``,
+      `Input:`,
+      `  textarea: ${inputRect ? `${Math.round(inputRect.width)}x${Math.round(inputRect.height)} (x:${Math.round(inputRect.x)} y:${Math.round(inputRect.y)})` : "not found"}`,
+      `  wrapper: ${wrapperRect ? `${Math.round(wrapperRect.width)}x${Math.round(wrapperRect.height)} (x:${Math.round(wrapperRect.x)} y:${Math.round(wrapperRect.y)})` : "not found"}`,
+      `  input bar: ${inputBarRect ? `${Math.round(inputBarRect.width)}x${Math.round(inputBarRect.height)} (x:${Math.round(inputBarRect.x)} y:${Math.round(inputBarRect.y)})` : "not found"}`,
+      `  font-size: ${inputStyles?.fontSize ?? "n/a"}`,
+      `  line-height: ${inputStyles?.lineHeight ?? "n/a"}`,
+      `  padding: ${inputStyles?.padding ?? "n/a"}`,
+      ``,
+      `Chat Scroll:`,
+      `  viewport: ${chatScrollRect ? `${Math.round(chatScrollRect.width)}x${Math.round(chatScrollRect.height)} (x:${Math.round(chatScrollRect.x)} y:${Math.round(chatScrollRect.y)})` : "not found"}`,
+      `  clientHeight: ${chatScroll ? Math.round(chatScroll.clientHeight) : "n/a"}`,
+      `  offsetHeight: ${chatScroll ? Math.round(chatScroll.offsetHeight) : "n/a"}`,
+      `  scrollTop: ${chatScroll ? Math.round(chatScroll.scrollTop) : "n/a"}`,
+      `  scrollHeight: ${chatScroll ? Math.round(chatScroll.scrollHeight) : "n/a"}`,
+      ``,
+      `Conversation View:`,
+      `  bounds: ${convoRect ? `${Math.round(convoRect.width)}x${Math.round(convoRect.height)} (x:${Math.round(convoRect.x)} y:${Math.round(convoRect.y)})` : "not found"}`,
+      `  gridTemplateRows: ${convoStyles?.gridTemplateRows ?? "n/a"}`,
+      ``,
+      `Content Area:`,
+      `  bounds: ${contentRect ? `${Math.round(contentRect.width)}x${Math.round(contentRect.height)} (x:${Math.round(contentRect.x)} y:${Math.round(contentRect.y)})` : "not found"}`,
+      ``,
+      `Bubble Tokens:`,
+      `  --bubble-padding-h: ${rootStyles.getPropertyValue("--bubble-padding-h").trim()}`,
+      `  --bubble-padding-v: ${rootStyles.getPropertyValue("--bubble-padding-v").trim()}`,
+      `  --bubble-radius-large: ${rootStyles.getPropertyValue("--bubble-radius-large").trim()}`,
+      `  --bubble-radius-small: ${rootStyles.getPropertyValue("--bubble-radius-small").trim()}`,
+      `  --bubble-max-width: ${rootStyles.getPropertyValue("--bubble-max-width").trim()}`,
+      ``,
+      `Layout Tokens:`,
+      `  --title-bar-height: ${rootStyles.getPropertyValue("--title-bar-height").trim()}`,
+      `  --sidebar-width: ${rootStyles.getPropertyValue("--sidebar-width").trim()}`,
+    ];
+
+    try {
+      await navigator.clipboard.writeText(lines.join("\n"));
+    } catch {
+      // ignore clipboard errors
+    }
+  }, [activeChatGuid, chats.length, messageCount, themeMode]);
+
   return (
-    <div style={sidebarStyle} className="glass-panel">
+    <div style={wrapperStyle}>
+      <div style={sidebarStyle} className="glass-panel">
       {/* Top row: hamburger left, refresh + compose right */}
       <div style={topRowStyle}>
-        <SidebarIconButton
-          label="Menu"
-          onClick={() => setMenuOpen((o) => !o)}
-        >
-          {/* Hamburger icon - 3 horizontal lines */}
-          <svg width="18" height="14" viewBox="0 0 18 14" fill="none">
-            <rect y="0" width="18" height="2" rx="1" fill="currentColor" />
-            <rect y="6" width="18" height="2" rx="1" fill="currentColor" />
-            <rect y="12" width="18" height="2" rx="1" fill="currentColor" />
-          </svg>
-        </SidebarIconButton>
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <SidebarIconButton
+            label="Menu"
+            onClick={() => setMenuOpen((o) => !o)}
+          >
+            {/* Hamburger icon - 3 horizontal lines */}
+            <svg width="18" height="14" viewBox="0 0 18 14" fill="none">
+              <rect y="0" width="18" height="2" rx="1" fill="currentColor" />
+              <rect y="6" width="18" height="2" rx="1" fill="currentColor" />
+              <rect y="12" width="18" height="2" rx="1" fill="currentColor" />
+            </svg>
+          </SidebarIconButton>
+
+          <SidebarIconButton
+            label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+            onClick={() => {
+              if (themeMode === "light") setThemeMode("dark");
+              else if (themeMode === "dark") setThemeMode("light");
+              else setThemeMode(isDark ? "light" : "dark");
+            }}
+          >
+            {/* Sun/Moon icon */}
+            {isDark ? (
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <circle cx="8" cy="8" r="4" fill="currentColor" />
+                <path d="M8 1V2M8 14V15M15 8H14M2 8H1M12.5 3.5L11.8 4.2M4.2 11.8L3.5 12.5M12.5 12.5L11.8 11.8M4.2 4.2L3.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+            ) : (
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M14 8.5C13.3 11.5 10.5 13.5 7.5 13C4.5 12.5 2.5 9.7 3 6.7C3.3 5 4.5 3.6 6 2.8C6.2 2.7 6.3 2.9 6.2 3.1C5.8 4.2 5.8 5.5 6.3 6.7C7.3 9 9.7 10.2 12 9.5C12.2 9.4 12.4 9.6 12.3 9.8C11.9 10.5 11.3 11.1 10.6 11.5" fill="currentColor" />
+              </svg>
+            )}
+          </SidebarIconButton>
+
+          {debugMode && (
+            <div style={{ position: "relative" }}>
+              <SidebarIconButton
+                label="Debug tools"
+                onClick={() => setDebugMenuOpen((o) => !o)}
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M6 1H10" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                  <rect x="4" y="3" width="8" height="10" rx="3" stroke="currentColor" strokeWidth="1.4" />
+                  <path d="M2 6H4M12 6H14M2 10H4M12 10H14" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                </svg>
+              </SidebarIconButton>
+
+              {debugMenuOpen && (
+                <div
+                  className="glass-panel-elevated"
+                  style={{
+                    position: "absolute",
+                    top: "100%",
+                    left: 0,
+                    marginTop: 6,
+                    zIndex: 120,
+                    background: "var(--color-surface)",
+                    borderRadius: 12,
+                    boxShadow: "0 4px 20px rgba(0,0,0,0.18)",
+                    padding: "4px 0",
+                    minWidth: 200,
+                  }}
+                >
+                  <MenuDropdownItem
+                    label="Copy Layout Diagnostics"
+                    onClick={() => {
+                      handleCopyDiagnostics();
+                      setDebugMenuOpen(false);
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <RefreshButton
@@ -67,6 +221,28 @@ export function Sidebar({ width = 340, children }: SidebarProps) {
             lastRefreshTime={lastRefreshTime}
             onRefresh={refreshChats}
           />
+
+          {error && (
+            <button
+              onClick={() => navigate("/settings?panel=server")}
+              title={`Connection issue${errorAt ? ` (${new Date(errorAt).toLocaleTimeString()})` : ""}\n${error}`}
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: "50%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "var(--color-error-container)",
+                color: "var(--color-error)",
+                border: "1px solid var(--color-error)",
+                cursor: "pointer",
+              }}
+              aria-label="Connection issue"
+            >
+              <span style={{ fontSize: 12, fontWeight: 700 }}>!</span>
+            </button>
+          )}
 
           <SidebarIconButton
             label="New message"
@@ -117,6 +293,14 @@ export function Sidebar({ width = 340, children }: SidebarProps) {
               updateSetting("demoMode", checked ? "true" : "false");
             }}
           />
+          <MenuToggleItem
+            label="Debug Mode"
+            checked={debugMode}
+            onChange={(checked) => {
+              updateSetting("debugMode", checked ? "true" : "false");
+              if (!checked) setDebugMenuOpen(false);
+            }}
+          />
         </div>
       )}
       {menuOpen && (
@@ -126,6 +310,17 @@ export function Sidebar({ width = 340, children }: SidebarProps) {
             position: "fixed",
             inset: 0,
             zIndex: 99,
+          }}
+        />
+      )}
+
+      {debugMenuOpen && (
+        <div
+          onClick={() => setDebugMenuOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 119,
           }}
         />
       )}
@@ -140,7 +335,7 @@ export function Sidebar({ width = 340, children }: SidebarProps) {
       </div>
 
       {/* Blue loading progress line */}
-      <LoadingLine visible={isRefreshing} />
+      <LoadingLine visible={isRefreshing} height={1} />
 
       {/* Connection indicator - subtle */}
       {status !== "connected" && (
@@ -180,6 +375,7 @@ export function Sidebar({ width = 340, children }: SidebarProps) {
         }}
       >
         {children}
+      </div>
       </div>
     </div>
   );
@@ -293,11 +489,9 @@ function RefreshButton({ isRefreshing, lastRefreshTime, onRefresh }: RefreshButt
         aria-label="Refresh"
         style={{
           display: "flex",
-          flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          gap: 1,
-          padding: "2px 6px",
+          padding: "4px 6px",
           borderRadius: 6,
           backgroundColor: hovered ? "var(--color-surface-variant)" : "transparent",
           color: isRefreshing ? "#007AFF" : "var(--color-on-surface-variant)",
@@ -332,20 +526,29 @@ function RefreshButton({ isRefreshing, lastRefreshTime, onRefresh }: RefreshButt
             fill="none"
           />
         </svg>
-
-        {secondsAgo !== null && (
-          <span
-            style={{
-              fontSize: 10,
-              lineHeight: 1,
-              color: "var(--color-on-surface-variant)",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {formatTimeAgo(secondsAgo)}
-          </span>
-        )}
       </button>
+
+      {hovered && secondsAgo !== null && (
+        <div
+          style={{
+            position: "absolute",
+            top: "100%",
+            right: 0,
+            marginTop: 6,
+            padding: "2px 6px",
+            borderRadius: 6,
+            background: "var(--color-surface-variant)",
+            color: "var(--color-on-surface-variant)",
+            fontSize: 10,
+            lineHeight: 1.2,
+            whiteSpace: "nowrap",
+            boxShadow: "var(--elevation-1)",
+            pointerEvents: "none",
+          }}
+        >
+          {formatTimeAgo(secondsAgo)}
+        </div>
+      )}
 
       {/* Long press popover */}
       <AnimatePresence>

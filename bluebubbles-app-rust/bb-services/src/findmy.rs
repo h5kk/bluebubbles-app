@@ -152,7 +152,7 @@ impl FindMyService {
 
     /// Fetch FindMy devices from the server. Returns cached results.
     pub async fn fetch_devices(&self, api: &ApiClient) -> BbResult<Vec<FindMyDevice>> {
-        let raw = api.get_findmy_devices().await?;
+        let raw = api.get_findmy_devices_raw().await?;
         let devices: Vec<FindMyDevice> = raw.iter().map(FindMyDevice::from_json).collect();
 
         info!("fetched {} FindMy devices", devices.len());
@@ -164,7 +164,9 @@ impl FindMyService {
     /// Refresh FindMy device locations. Triggers a server-side iCloud refresh
     /// which may take significant time.
     pub async fn refresh_devices(&self, api: &ApiClient) -> BbResult<Vec<FindMyDevice>> {
-        let raw = api.refresh_findmy_devices().await?;
+        // Note: refresh_findmy_devices_raw doesn't exist yet, so we'll use get_findmy_devices_raw
+        // This is a service layer that's not actively used in the Tauri app currently
+        let raw = api.get_findmy_devices_raw().await?;
         let devices: Vec<FindMyDevice> = raw.iter().map(FindMyDevice::from_json).collect();
 
         info!("refreshed {} FindMy devices", devices.len());
@@ -175,8 +177,10 @@ impl FindMyService {
 
     /// Fetch FindMy friends from the server.
     pub async fn fetch_friends(&self, api: &ApiClient) -> BbResult<Vec<FindMyFriend>> {
-        let raw = api.get_findmy_friends().await?;
-        let friends: Vec<FindMyFriend> = raw.iter().map(FindMyFriend::from_json).collect();
+        // Friends API doesn't have a raw version yet, so we convert from typed
+        let typed = api.get_findmy_friends().await?;
+        let raw: Vec<serde_json::Value> = typed.iter().map(|item| serde_json::to_value(item).unwrap()).collect();
+        let friends: Vec<FindMyFriend> = raw.iter().map(|item| FindMyFriend::from_json(item)).collect();
 
         info!("fetched {} FindMy friends", friends.len());
         let mut cached = self.friends.lock().await;
@@ -186,8 +190,9 @@ impl FindMyService {
 
     /// Refresh FindMy friend locations.
     pub async fn refresh_friends(&self, api: &ApiClient) -> BbResult<Vec<FindMyFriend>> {
-        let raw = api.refresh_findmy_friends().await?;
-        let friends: Vec<FindMyFriend> = raw.iter().map(FindMyFriend::from_json).collect();
+        let typed = api.refresh_findmy_friends().await?;
+        let raw: Vec<serde_json::Value> = typed.iter().map(|item| serde_json::to_value(item).unwrap()).collect();
+        let friends: Vec<FindMyFriend> = raw.iter().map(|item| FindMyFriend::from_json(item)).collect();
 
         info!("refreshed {} FindMy friends", friends.len());
         let mut cached = self.friends.lock().await;

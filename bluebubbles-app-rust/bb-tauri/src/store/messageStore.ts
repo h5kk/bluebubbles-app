@@ -5,6 +5,7 @@ import { create } from "zustand";
 import type { Message } from "@/hooks/useTauri";
 import { tauriGetMessages, tauriSendMessage } from "@/hooks/useTauri";
 import { useChatStore } from "./chatStore";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 interface MessageState {
   messages: Message[];
@@ -20,6 +21,11 @@ interface MessageState {
   sendMessage: (text: string, effect?: string) => Promise<void>;
   addMessage: (message: Message) => void;
   clear: () => void;
+
+  // Event listener cleanup
+  _unlisten: UnlistenFn | null;
+  _startListening: (chatGuid: string) => Promise<void>;
+  _stopListening: () => void;
 }
 
 const MESSAGE_PAGE_SIZE = 25;
@@ -35,10 +41,14 @@ export const useMessageStore = create<MessageState>((set, get) => ({
   chatGuid: null,
   hasMore: true,
   offset: 0,
+  _unlisten: null,
 
   loadMessages: async (chatGuid: string) => {
     // Increment generation so any in-flight load becomes stale
     const gen = ++loadGeneration;
+
+    // Stop listening to previous chat
+    get()._stopListening();
 
     set({ loading: true, error: null, chatGuid, messages: [], offset: 0 });
 
@@ -65,6 +75,9 @@ export const useMessageStore = create<MessageState>((set, get) => ({
         offset: fetched.length,
         hasMore: fetched.length >= MESSAGE_PAGE_SIZE,
       });
+
+      // Start listening for real-time updates for this chat
+      get()._startListening(chatGuid);
     } catch (err) {
       if (gen !== loadGeneration) return;
       set({
@@ -160,10 +173,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
         is_from_me: true,
       });
 
-      // Refresh messages immediately after sending to get latest from server
-      setTimeout(() => {
-        get().loadMessages(chatGuid);
-      }, 500);
+      // Optimistic update + server response already reflect the new message.
     } catch (err) {
       // Mark the optimistic message as failed instead of removing it
       set((state) => ({
@@ -177,18 +187,59 @@ export const useMessageStore = create<MessageState>((set, get) => ({
   },
 
   addMessage: (message: Message) => {
-    const { messages } = get();
+    const { messages, chatGuid } = get();
+
+    // Only add if this message belongs to the current chat
+    if (!chatGuid) return;
+
     // Avoid duplicates
     if (messages.some((m) => m.guid === message.guid)) return;
+
+    // Add to top (newest first)
     set({ messages: [message, ...messages] });
+
+    // Update chat preview
+    useChatStore.getState().updateChatPreview(chatGuid, {
+      text: message.text,
+      date_created: message.date_created,
+      is_from_me: message.is_from_me,
+    });
   },
 
-  clear: () =>
+  clear: () => {
+    get()._stopListening();
     set({
       messages: [],
       chatGuid: null,
       hasMore: true,
       offset: 0,
       error: null,
-    }),
+    });
+  },
+
+  // Event listener management
+  _startListening: async (chatGuid: string) => {
+    // Clean up any existing listener
+    get()._stopListening();
+
+    try {
+      // Listen for new messages in this chat
+      const unlisten = await listen<Message>(`new-message:${chatGuid}`, (event) => {
+        get().addMessage(event.payload);
+      });
+
+      // Store unlisten function
+      set({ _unlisten: unlisten });
+    } catch (err) {
+      console.warn("Failed to set up message listeners:", err);
+    }
+  },
+
+  _stopListening: () => {
+    const { _unlisten } = get();
+    if (_unlisten) {
+      _unlisten();
+      set({ _unlisten: null });
+    }
+  },
 }));

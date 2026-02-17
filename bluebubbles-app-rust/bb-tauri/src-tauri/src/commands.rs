@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 use tauri::State;
 use tauri::Emitter;
-use tracing::{info, debug};
+use tracing::{info, debug, warn};
 
 use bb_core::config::ServerConfig;
 use bb_api::ApiClient;
@@ -70,6 +70,119 @@ fn parse_server_info(data: Option<&serde_json::Value>, api_root: Option<String>,
     }
 }
 
+fn parse_ip_list(data: Option<&serde_json::Value>, keys: &[&str]) -> Vec<String> {
+    let Some(root) = data else { return Vec::new(); };
+    for key in keys {
+        if let Some(arr) = root.get(*key).and_then(|v| v.as_array()) {
+            let ips: Vec<String> = arr.iter().filter_map(|v| v.as_str().map(String::from)).collect();
+            if !ips.is_empty() {
+                return ips;
+            }
+        }
+    }
+    Vec::new()
+}
+
+fn extract_local_ips(data: Option<&serde_json::Value>) -> (Vec<String>, Vec<String>) {
+    let ipv4 = parse_ip_list(
+        data,
+        &["local_ipv4s", "localIpv4s", "localIPv4s", "local_ipv4", "localIpv4"],
+    );
+    let ipv6 = parse_ip_list(
+        data,
+        &["local_ipv6s", "localIpv6s", "localIPv6s", "local_ipv6", "localIpv6"],
+    );
+    (ipv4, ipv6)
+}
+
+async fn try_localhost_ping(address: &str, auth_key: &str) -> bool {
+    let server_config = ServerConfig {
+        address: address.to_string(),
+        guid_auth_key: auth_key.to_string(),
+        custom_headers: HashMap::new(),
+        api_timeout_ms: 2500,
+        accept_self_signed_certs: true,
+    };
+    let client = match ApiClient::new(&server_config) {
+        Ok(c) => c,
+        Err(_) => return false,
+    };
+    client.ping().await.unwrap_or(false)
+}
+
+async fn apply_localhost_override(
+    state: &AppState,
+    local_ipv4s: Vec<String>,
+    local_ipv6s: Vec<String>,
+) -> Result<Option<String>, String> {
+    let conn = state.database.conn().map_err(|e| e.to_string())?;
+    let port_setting = Settings::get(&conn, bb_models::models::settings::keys::USE_LOCALHOST)
+        .map_err(|e| e.to_string())?
+        .unwrap_or_default();
+    let mut port_str = port_setting.trim();
+
+    let api = state.api_client().await.map_err(|e| e.to_string())?;
+
+    if port_str.is_empty() || port_str.eq_ignore_ascii_case("false") {
+        api.set_origin_override(None).await;
+        return Ok(None);
+    }
+
+    if port_str.eq_ignore_ascii_case("true") {
+        port_str = "1234";
+    }
+
+    let port: u16 = match port_str.parse() {
+        Ok(p) => p,
+        Err(_) => {
+            warn!("invalid localhost port setting: {port_str}");
+            api.set_origin_override(None).await;
+            return Ok(None);
+        }
+    };
+
+    let use_ipv6 = Settings::get_bool(&conn, bb_models::models::settings::keys::USE_LOCAL_IPV6)
+        .map_err(|e| e.to_string())?
+        .unwrap_or(false);
+
+    let cfg = state.config.read().await;
+    let auth_key = cfg.server.guid_auth_key.clone();
+    drop(cfg);
+
+    if auth_key.is_empty() {
+        api.set_origin_override(None).await;
+        return Ok(None);
+    }
+
+    let mut ordered: Vec<(String, bool)> = Vec::new();
+    if use_ipv6 {
+        ordered.extend(local_ipv6s.iter().cloned().map(|ip| (ip, true)));
+    }
+    ordered.extend(local_ipv4s.iter().cloned().map(|ip| (ip, false)));
+    if !use_ipv6 {
+        ordered.extend(local_ipv6s.iter().cloned().map(|ip| (ip, true)));
+    }
+
+    let schemes = ["https", "http"];
+    for (ip, is_v6) in ordered {
+        for scheme in schemes.iter() {
+            let addr = if is_v6 {
+                format!("{scheme}://[{ip}]:{port}")
+            } else {
+                format!("{scheme}://{ip}:{port}")
+            };
+            if try_localhost_ping(&addr, &auth_key).await {
+                debug!("localhost detected: {addr}");
+                api.set_origin_override(Some(addr.clone())).await;
+                return Ok(Some(addr));
+            }
+        }
+    }
+
+    api.set_origin_override(None).await;
+    Ok(None)
+}
+
 /// Simple percent-encoding for URL path segments.
 fn percent_encode_path(s: &str) -> String {
     let mut out = String::with_capacity(s.len() * 3);
@@ -123,10 +236,21 @@ pub async fn connect(
     // Persist credentials to SQLite so we can auto-reconnect on restart
     {
         let conn = state.database.conn().map_err(|e| e.to_string())?;
+        let remember_password = Settings::get_bool(
+            &conn,
+            bb_models::models::settings::keys::REMEMBER_PASSWORD,
+        )
+        .map_err(|e| e.to_string())?
+        .unwrap_or(true);
+
         Settings::set(&conn, bb_models::models::settings::keys::SERVER_ADDRESS, &address)
             .map_err(|e| e.to_string())?;
-        Settings::set(&conn, bb_models::models::settings::keys::GUID_AUTH_KEY, &password)
-            .map_err(|e| e.to_string())?;
+        if remember_password {
+            Settings::set(&conn, bb_models::models::settings::keys::GUID_AUTH_KEY, &password)
+                .map_err(|e| e.to_string())?;
+        } else {
+            let _ = Settings::delete(&conn, bb_models::models::settings::keys::GUID_AUTH_KEY);
+        }
     }
 
     // Update in-memory config
@@ -139,6 +263,12 @@ pub async fn connect(
 
     // Parse server info from response
     let info = parse_server_info(response.data.as_ref(), Some(api_root_str), Some(password));
+
+    // Attempt localhost detection (best-effort)
+    let (local_ipv4s, local_ipv6s) = extract_local_ips(response.data.as_ref());
+    if let Err(e) = apply_localhost_override(&state, local_ipv4s, local_ipv6s).await {
+        debug!("localhost detection skipped/failed: {e}");
+    }
 
     info!("connected to server v{}", info.server_version.as_deref().unwrap_or("unknown"));
     Ok(info)
@@ -165,6 +295,17 @@ pub async fn get_server_info(state: State<'_, AppState>) -> Result<ServerInfo, S
 #[tauri::command]
 pub async fn try_auto_connect(state: State<'_, AppState>) -> Result<Option<ServerInfo>, String> {
     let conn = state.database.conn().map_err(|e| e.to_string())?;
+
+    let remember_password = Settings::get_bool(
+        &conn,
+        bb_models::models::settings::keys::REMEMBER_PASSWORD,
+    )
+    .map_err(|e| e.to_string())?
+    .unwrap_or(true);
+    if !remember_password {
+        debug!("remember password disabled, skipping auto-connect");
+        return Ok(None);
+    }
 
     let address = Settings::get(&conn, bb_models::models::settings::keys::SERVER_ADDRESS)
         .map_err(|e| e.to_string())?;
@@ -208,8 +349,24 @@ pub async fn try_auto_connect(state: State<'_, AppState>) -> Result<Option<Serve
     }
 
     let info = parse_server_info(response.data.as_ref(), Some(api_root_str), Some(password));
+    let (local_ipv4s, local_ipv6s) = extract_local_ips(response.data.as_ref());
+    if let Err(e) = apply_localhost_override(&state, local_ipv4s, local_ipv6s).await {
+        debug!("localhost detection skipped/failed: {e}");
+    }
     info!("auto-connected to server v{}", info.server_version.as_deref().unwrap_or("unknown"));
     Ok(Some(info))
+}
+
+/// Detect localhost address for faster LAN connections.
+#[tauri::command]
+pub async fn detect_localhost(state: State<'_, AppState>) -> Result<Option<String>, String> {
+    let api = state.api_client().await.map_err(|e| e.to_string())?;
+    let response = api
+        .get_json::<serde_json::Value>("/server/info")
+        .await
+        .map_err(|e| e.to_string())?;
+    let (local_ipv4s, local_ipv6s) = extract_local_ips(response.data.as_ref());
+    apply_localhost_override(&state, local_ipv4s, local_ipv6s).await
 }
 
 // ─── Chat commands ───────────────────────────────────────────────────────────
@@ -728,6 +885,200 @@ pub async fn sync_contact_avatars(
 
 // ─── Attachment commands ─────────────────────────────────────────────────────
 
+/// File picked via native dialog.
+#[derive(serde::Serialize, Clone, Debug)]
+pub struct PickedFile {
+    pub path: String,
+    pub name: String,
+    pub size: u64,
+}
+
+/// Options for sending an attachment.
+#[derive(serde::Deserialize, Clone, Debug)]
+pub struct SendAttachmentOptions {
+    pub effect_id: Option<String>,
+    pub subject: Option<String>,
+}
+
+/// Helper: infer MIME type from file extension.
+fn infer_mime_type(filename: &str) -> String {
+    let ext = std::path::Path::new(filename)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("");
+
+    match ext.to_lowercase().as_str() {
+        // Images
+        "jpg" | "jpeg" => "image/jpeg",
+        "png" => "image/png",
+        "gif" => "image/gif",
+        "bmp" => "image/bmp",
+        "webp" => "image/webp",
+        "heic" => "image/heic",
+        "heif" => "image/heif",
+
+        // Videos
+        "mp4" => "video/mp4",
+        "mov" => "video/quicktime",
+        "avi" => "video/x-msvideo",
+        "webm" => "video/webm",
+        "m4v" => "video/x-m4v",
+
+        // Audio
+        "mp3" => "audio/mpeg",
+        "m4a" => "audio/mp4",
+        "wav" => "audio/wav",
+        "aac" => "audio/aac",
+        "caf" => "audio/x-caf",
+
+        // Documents
+        "pdf" => "application/pdf",
+        "doc" => "application/msword",
+        "docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "xls" => "application/vnd.ms-excel",
+        "xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "txt" => "text/plain",
+
+        _ => "application/octet-stream",
+    }.to_string()
+}
+
+/// Helper: validate file for upload.
+fn validate_file_upload(path: &str, max_size: u64) -> Result<(), String> {
+    let metadata = std::fs::metadata(path)
+        .map_err(|e| format!("failed to read file metadata: {e}"))?;
+
+    if !metadata.is_file() {
+        return Err("path is not a file".to_string());
+    }
+
+    let size = metadata.len();
+    if size > max_size {
+        return Err(format!(
+            "file size ({} MB) exceeds maximum ({} MB)",
+            size / 1_048_576,
+            max_size / 1_048_576
+        ));
+    }
+
+    if size == 0 {
+        return Err("file is empty".to_string());
+    }
+
+    Ok(())
+}
+
+/// Pick a file using the native file dialog.
+/// Returns file metadata if a file was selected, or None if cancelled.
+#[tauri::command]
+pub async fn pick_attachment_file(app: tauri::AppHandle) -> Result<Option<PickedFile>, String> {
+    debug!("pick_attachment_file");
+
+    use tauri_plugin_dialog::DialogExt;
+
+    // Use Tauri v2 dialog plugin to pick a file
+    let file_path = app.dialog()
+        .file()
+        .set_title("Select file to send")
+        .blocking_pick_file();
+
+    let Some(file_result) = file_path else {
+        debug!("file picker cancelled");
+        return Ok(None);
+    };
+
+    // FilePath has an as_path() method that returns Option<&Path>
+    let path_buf = file_result.as_path().ok_or_else(|| "invalid file path".to_string())?;
+    let path_str = path_buf.to_string_lossy().to_string();
+
+    // Get file metadata
+    let metadata = std::fs::metadata(path_buf)
+        .map_err(|e| format!("failed to read file: {e}"))?;
+
+    let name = path_buf
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("unknown")
+        .to_string();
+
+    let size = metadata.len();
+
+    info!("picked file: {} ({} bytes)", name, size);
+
+    Ok(Some(PickedFile {
+        path: path_str,
+        name,
+        size,
+    }))
+}
+
+/// Send an attachment message with optional effect and subject.
+/// Reads the file from disk, uploads it, and sends it in the specified chat.
+#[tauri::command]
+pub async fn send_attachment_message(
+    state: State<'_, AppState>,
+    chat_guid: String,
+    file_path: String,
+    options: SendAttachmentOptions,
+) -> Result<Message, String> {
+    info!("send_attachment_message chat={chat_guid} file={file_path}");
+
+    // Validate file (max 100MB)
+    validate_file_upload(&file_path, 100 * 1_048_576)?;
+
+    // Read file bytes
+    let file_bytes = std::fs::read(&file_path)
+        .map_err(|e| format!("failed to read file: {e}"))?;
+
+    let file_name = std::path::Path::new(&file_path)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("attachment")
+        .to_string();
+
+    let mime_type = infer_mime_type(&file_name);
+
+    info!("uploading {} bytes as {}", file_bytes.len(), mime_type);
+
+    // Generate temp GUID for tracking
+    let temp_guid = format!("temp-{}", uuid::Uuid::new_v4());
+
+    // Build attachment parameters
+    let params = bb_api::endpoints::attachments::SendAttachmentParams {
+        chat_guid: chat_guid.clone(),
+        temp_guid: temp_guid.clone(),
+        file_name: file_name.clone(),
+        method: "private-api".to_string(),
+        effect_id: options.effect_id,
+        subject: options.subject,
+        selected_message_guid: None,
+        part_index: None,
+        is_audio_message: None,
+    };
+
+    // Upload attachment
+    let api = state.api_client().await.map_err(|e| e.to_string())?;
+    let response = api
+        .send_attachment_full(&params, file_bytes, &mime_type)
+        .await
+        .map_err(|e| format!("attachment upload failed: {e}"))?;
+
+    // Parse response as message
+    let mut msg = Message::from_server_map(&response).map_err(|e| e.to_string())?;
+
+    // Save to local DB
+    let conn = state.database.conn().map_err(|e| e.to_string())?;
+    if let Some(chat) = Chat::find_by_guid(&conn, &chat_guid).map_err(|e| e.to_string())? {
+        msg.chat_id = chat.id;
+    }
+    if let Err(e) = msg.save(&conn) {
+        debug!("failed to save attachment message to DB (non-fatal): {e}");
+    }
+
+    info!("attachment sent successfully");
+    Ok(msg)
+}
+
 #[tauri::command]
 pub async fn download_attachment(
     state: State<'_, AppState>,
@@ -823,6 +1174,71 @@ pub async fn send_typing_indicator(
         .map_err(|e| format!("typing indicator failed: {e}"))
 }
 
+/// Summary of a reaction on a message.
+#[derive(serde::Serialize, Clone, Debug)]
+pub struct ReactionSummary {
+    pub reaction_type: Option<String>,
+    pub sender_address: Option<String>,
+    pub date_created: Option<String>,
+    pub is_from_me: bool,
+}
+
+/// Get reactions for a specific message by its GUID.
+/// Returns a list of all reactions (tapbacks) on the message.
+#[tauri::command]
+pub async fn get_message_reactions(
+    state: State<'_, AppState>,
+    message_guid: String,
+) -> Result<Vec<ReactionSummary>, String> {
+    debug!("get_message_reactions message_guid={message_guid}");
+
+    let conn = state.database.conn().map_err(|e| e.to_string())?;
+
+    // Find the target message first to verify it exists
+    let _message = Message::find_by_guid(&conn, &message_guid)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("message not found: {message_guid}"))?;
+
+    // Reactions are stored as associated_messages with associated_message_type
+    // Query for all messages that reference this message as their associated_message_guid
+    let mut stmt = conn
+        .prepare(
+            "SELECT m.*, h.id as h_id, h.address as h_address
+             FROM messages m
+             LEFT JOIN handles h ON m.handle_id = h.id
+             WHERE m.associated_message_guid = ?1
+             AND m.associated_message_type IS NOT NULL
+             ORDER BY m.date_created ASC",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let reactions: Vec<ReactionSummary> = stmt
+        .query_map([&message_guid], |row| {
+            let is_from_me: i32 = row.get("is_from_me")?;
+            let handle_address: Option<String> = row.get("h_address").ok();
+
+            // Get sender address
+            let sender_address = if is_from_me != 0 {
+                Some("Me".to_string())
+            } else {
+                handle_address
+            };
+
+            Ok(ReactionSummary {
+                reaction_type: row.get("associated_message_type")?,
+                sender_address,
+                date_created: row.get("date_created")?,
+                is_from_me: is_from_me != 0,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e: rusqlite::Error| e.to_string())?;
+
+    debug!("found {} reactions for message {}", reactions.len(), message_guid);
+    Ok(reactions)
+}
+
 /// Send a reaction (tapback) to a message.
 #[tauri::command]
 pub async fn send_reaction(
@@ -900,7 +1316,15 @@ pub async fn update_setting(
 ) -> Result<(), String> {
     debug!("update_setting key={key}");
     let conn = state.database.conn().map_err(|e| e.to_string())?;
-    Settings::set(&conn, &key, &value).map_err(|e| e.to_string())
+    Settings::set(&conn, &key, &value).map_err(|e| e.to_string())?;
+
+    if key == bb_models::models::settings::keys::REMEMBER_PASSWORD
+        && !(value == "true" || value == "1")
+    {
+        let _ = Settings::delete(&conn, bb_models::models::settings::keys::GUID_AUTH_KEY);
+    }
+
+    Ok(())
 }
 
 // ─── Sync commands ───────────────────────────────────────────────────────────
@@ -1189,12 +1613,19 @@ pub async fn get_findmy_devices(
     info!("get_findmy_devices");
     let api = state.api_client().await.map_err(|e| e.to_string())?;
     let devices = api
-        .get_findmy_devices()
+        .get_findmy_devices_raw()
         .await
         .map_err(|e| format!("findmy failed: {e}"))?;
 
+    if devices.is_empty() {
+        tracing::warn!("FindMy devices response is empty - cache may be encrypted (macOS 14.4+) or no devices found");
+        return Ok(vec![]);
+    }
+
     tracing::debug!("FindMy devices raw response: {} devices", devices.len());
-    tracing::debug!("First device (if any): {:?}", devices.first());
+    if let Some(first) = devices.first() {
+        tracing::debug!("First device structure: {}", serde_json::to_string_pretty(first).unwrap_or_default());
+    }
 
     let result: Vec<FindMyDeviceInfo> = devices
         .iter()
@@ -1293,7 +1724,7 @@ pub async fn refresh_findmy_devices(
     info!("refresh_findmy_devices");
     let api = state.api_client().await.map_err(|e| e.to_string())?;
     let devices = api
-        .refresh_findmy_devices()
+        .refresh_findmy_devices_raw()
         .await
         .map_err(|e| format!("findmy refresh failed: {e}"))?;
 
@@ -1386,67 +1817,68 @@ pub async fn refresh_findmy_devices(
 /// Serializable FindMy friend for the frontend.
 #[derive(serde::Serialize, Clone, Debug)]
 pub struct FindMyFriendInfo {
-    pub id: String,
-    pub name: String,
+    pub id: String,           // handle (phone/email)
+    pub handle: String,       // handle (phone/email) - duplicate for clarity
+    pub name: String,         // handle as display name (frontend can resolve to contact)
     pub latitude: Option<f64>,
     pub longitude: Option<f64>,
     pub address: Option<String>,
-    pub last_updated: Option<u64>,
-    pub status: Option<String>,
+    pub last_updated: Option<u64>,  // milliseconds
+    pub status: Option<String>,     // "live", "shallow", "legacy"
     pub locating_in_progress: bool,
 }
 
 /// Helper: parse a list of friend JSON values into FindMyFriendInfo structs.
+/// Server returns: { handle, coordinates: [lat, lon], short_address, long_address, last_updated, status, is_locating_in_progress }
 fn parse_findmy_friends(friends: &[serde_json::Value]) -> Vec<FindMyFriendInfo> {
     friends
         .iter()
-        .map(|f| {
-            let location = f.get("location").filter(|l| !l.is_null())
-                .or_else(|| f.get("locationInfo").filter(|l| !l.is_null()));
+        .filter_map(|f| {
+            // Extract handle (required field)
+            let handle = f.get("handle")?.as_str()?;
 
-            let first = f.get("firstName").and_then(|v| v.as_str()).unwrap_or("");
-            let last = f.get("lastName").and_then(|v| v.as_str()).unwrap_or("");
-            let name = if first.is_empty() && last.is_empty() {
-                "Unknown".to_string()
+            // Extract coordinates [latitude, longitude]
+            let (latitude, longitude) = if let Some(coords) = f.get("coordinates").and_then(|c| c.as_array()) {
+                if coords.len() >= 2 {
+                    (coords[0].as_f64(), coords[1].as_f64())
+                } else {
+                    (None, None)
+                }
             } else {
-                format!("{first} {last}").trim().to_string()
+                (None, None)
             };
 
-            // Try shortAddress first, then longAddress from the address sub-object
-            let address = f.get("address").and_then(|a| {
-                a.get("shortAddress")
-                    .and_then(|v| v.as_str())
-                    .or_else(|| a.get("longAddress").and_then(|v| v.as_str()))
-                    .map(String::from)
-            }).or_else(|| {
-                // Some responses have address fields at location level
-                location.and_then(|l| {
-                    l.get("shortAddress")
-                        .and_then(|v| v.as_str())
-                        .or_else(|| l.get("longAddress").and_then(|v| v.as_str()))
-                        .map(String::from)
-                })
-            });
+            // Extract address (short_address preferred, fallback to long_address)
+            let address = f.get("short_address")
+                .and_then(|v| v.as_str())
+                .or_else(|| f.get("long_address").and_then(|v| v.as_str()))
+                .map(String::from);
 
-            FindMyFriendInfo {
-                id: f.get("id")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string(),
-                name,
-                latitude: location.and_then(|l| l.get("latitude")).and_then(|v| v.as_f64()),
-                longitude: location.and_then(|l| l.get("longitude")).and_then(|v| v.as_f64()),
+            // Extract last_updated (in milliseconds)
+            let last_updated = f.get("last_updated").and_then(|v| v.as_u64());
+
+            // Extract status
+            let status = f.get("status")
+                .and_then(|v| v.as_str())
+                .map(String::from);
+
+            // Extract is_locating_in_progress
+            let locating_in_progress = f.get("is_locating_in_progress")
+                .and_then(|v| v.as_u64())
+                .map(|n| n == 1)
+                .unwrap_or(false);
+
+            Some(FindMyFriendInfo {
+                id: handle.to_string(),
+                handle: handle.to_string(),
+                name: handle.to_string(), // Use handle as name (clients can resolve to contact name)
+                latitude,
+                longitude,
                 address,
-                last_updated: location
-                    .and_then(|l| l.get("timeStamp"))
-                    .and_then(|v| v.as_u64()),
-                status: f.get("status")
-                    .and_then(|v| v.as_str())
-                    .map(String::from),
-                locating_in_progress: f.get("locatingInProgress")
-                    .and_then(|v| v.as_bool())
-                    .unwrap_or(false),
-            }
+                last_updated,
+                status,
+                locating_in_progress,
+            })
         })
         .collect()
 }
@@ -1459,12 +1891,22 @@ pub async fn get_findmy_friends(
     info!("get_findmy_friends");
     let api = state.api_client().await.map_err(|e| e.to_string())?;
     let friends = api
-        .get_findmy_friends()
+        .get_findmy_friends_raw()
         .await
         .map_err(|e| format!("findmy friends failed: {e}"))?;
 
+    tracing::debug!("FindMy friends raw response: {} items", friends.len());
+    if let Some(first) = friends.first() {
+        tracing::debug!("First friend structure: {}", serde_json::to_string_pretty(first).unwrap_or_default());
+    }
+
     let result = parse_findmy_friends(&friends);
-    info!("get_findmy_friends: {} friends", result.len());
+    info!("get_findmy_friends: parsed {} friends from {} raw items", result.len(), friends.len());
+
+    if result.len() != friends.len() {
+        tracing::warn!("Some friends failed to parse: expected {}, got {}", friends.len(), result.len());
+    }
+
     Ok(result)
 }
 
@@ -1477,12 +1919,19 @@ pub async fn refresh_findmy_friends(
     info!("refresh_findmy_friends");
     let api = state.api_client().await.map_err(|e| e.to_string())?;
     let friends = api
-        .refresh_findmy_friends()
+        .refresh_findmy_friends_raw()
         .await
         .map_err(|e| format!("findmy friends refresh failed: {e}"))?;
 
+    tracing::debug!("FindMy friends refresh response: {} items", friends.len());
+
     let result = parse_findmy_friends(&friends);
-    info!("refresh_findmy_friends: {} friends", result.len());
+    info!("refresh_findmy_friends: parsed {} friends from {} raw items", result.len(), friends.len());
+
+    if result.len() != friends.len() {
+        tracing::warn!("Some friends failed to parse during refresh: expected {}, got {}", friends.len(), result.len());
+    }
+
     Ok(result)
 }
 

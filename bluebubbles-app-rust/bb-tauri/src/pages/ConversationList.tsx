@@ -10,6 +10,7 @@ import { ConversationTile } from "@/components/ConversationTile";
 import { Avatar, GroupAvatar } from "@/components/Avatar";
 import { ContextMenu, type ContextMenuItem } from "@/components/ContextMenu";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { getDemoName, getDemoAvatarUrl } from "@/utils/demoData";
 
 export function ConversationList() {
   const navigate = useNavigate();
@@ -29,6 +30,7 @@ export function ConversationList() {
   const toggleMute = useChatStore((s) => s.toggleMute);
   const archiveChat = useChatStore((s) => s.archiveChat);
   const { loaded: settingsLoaded } = useSettingsStore();
+  const demoMode = useSettingsStore((s) => s.demoMode);
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -185,19 +187,21 @@ export function ConversationList() {
               overflowX: "auto",
               overflowY: "hidden",
               flexShrink: 0,
-              borderBottom: "1px solid var(--color-surface-variant)",
+              borderBottom: "1px solid var(--color-divider-subtle)",
             }}
           >
             {pinned.map((chat) => {
               const chatData = chat.chat;
               const isGroup = chatData.participants.length > 1;
-              const name =
+              const rawName =
                 chatData.display_name ||
                 chat.participant_names.join(", ") ||
                 chatData.chat_identifier ||
                 "Unknown";
+              const name = demoMode ? getDemoName(rawName, isGroup) : rawName;
               const isActive = chatData.guid === selectedChatGuid;
               const hasUnread = chatData.has_unread_message;
+              const firstName = name.split(/[\s,]+/)[0] || name;
 
               return (
                 <div
@@ -213,9 +217,13 @@ export function ConversationList() {
                     alignItems: "center",
                     gap: 4,
                     cursor: "pointer",
-                    minWidth: 64,
-                    maxWidth: 72,
+                    minWidth: 70,
+                    maxWidth: 78,
                     position: "relative",
+                    padding: "8px 6px 10px",
+                    borderRadius: 14,
+                    backgroundColor: isActive ? "#007AFF" : "transparent",
+                    boxShadow: isActive ? "0 6px 14px rgba(0, 122, 255, 0.25)" : "none",
                   }}
                   role="button"
                   tabIndex={0}
@@ -225,32 +233,44 @@ export function ConversationList() {
                   <div style={{ position: "relative" }}>
                     {isGroup ? (
                       <GroupAvatar
-                        participants={chatData.participants.map((p, i) => ({
-                          name: chat.participant_names[i] ?? p.address,
-                          address: p.address,
-                        }))}
-                        size={56}
+                        participants={chatData.participants.map((p, i) => {
+                          const participantName = chat.participant_names[i] ?? p.address;
+                          const demoName = getDemoName(participantName);
+                          return {
+                            name: demoMode ? demoName : participantName,
+                            address: p.address,
+                            avatarUrl: demoMode ? getDemoAvatarUrl(demoName, p.address) : undefined,
+                          };
+                        })}
+                        size={60}
                       />
                     ) : (
                       <Avatar
                         name={name}
                         address={chatData.participants[0]?.address ?? chatData.guid}
-                        size={56}
+                        size={60}
+                        avatarUrl={
+                          demoMode
+                            ? getDemoAvatarUrl(name, chatData.participants[0]?.address ?? chatData.guid)
+                            : undefined
+                        }
                       />
                     )}
-                    {/* Online/status indicator dot */}
-                    <div
-                      style={{
-                        position: "absolute",
-                        bottom: 1,
-                        right: 1,
-                        width: 14,
-                        height: 14,
-                        borderRadius: "50%",
-                        backgroundColor: hasUnread ? "#007AFF" : "#34C759",
-                        border: "2px solid var(--color-background)",
-                      }}
-                    />
+                    {/* Unread indicator dot */}
+                    {hasUnread && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          bottom: 1,
+                          right: 1,
+                          width: 14,
+                          height: 14,
+                          borderRadius: "50%",
+                          backgroundColor: "#007AFF",
+                          border: "2px solid var(--color-background)",
+                        }}
+                      />
+                    )}
                   </div>
 
                   {/* Contact name */}
@@ -258,7 +278,7 @@ export function ConversationList() {
                     style={{
                       fontSize: 11,
                       fontWeight: isActive ? 600 : 400,
-                      color: "var(--color-on-surface)",
+                      color: isActive ? "#FFFFFF" : "var(--color-on-surface)",
                       textAlign: "center",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
@@ -267,7 +287,7 @@ export function ConversationList() {
                       lineHeight: 1.2,
                     }}
                   >
-                    {name.split(",")[0]}
+                    {firstName}
                   </span>
                 </div>
               );

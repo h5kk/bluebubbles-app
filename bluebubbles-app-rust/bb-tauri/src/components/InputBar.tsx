@@ -2,8 +2,11 @@
  * InputBar component - macOS Messages style.
  * Plus button (attachments), pill-shaped text field, audio/emoji/send buttons.
  */
-import { useState, useCallback, useRef, type KeyboardEvent, type ClipboardEvent, type CSSProperties } from "react";
+import React, { useState, useCallback, useRef, type KeyboardEvent, type ClipboardEvent, type CSSProperties } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { EmojiPicker } from "./EmojiPicker";
+import { useAttachmentStore } from "@/store/attachmentStore";
+import { ImagePreviewCard } from "./ImagePreviewCard";
 
 interface InputBarProps {
   onSend: (text: string) => void;
@@ -12,6 +15,7 @@ interface InputBarProps {
   sending?: boolean;
   sendWithReturn?: boolean;
   placeholder?: string;
+  chatGuid?: string | null;
 }
 
 export function InputBar({
@@ -21,10 +25,22 @@ export function InputBar({
   sending = false,
   sendWithReturn = false,
   placeholder = "iMessage",
+  chatGuid = null,
 }: InputBarProps) {
   const [text, setText] = useState("");
   const [pastedImage, setPastedImage] = useState<{ file: File; preview: string } | null>(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const emojiButtonRef = useRef<HTMLButtonElement>(null);
+
+  const { pendingAttachments, addPendingAttachment, removePendingAttachment } =
+    useAttachmentStore();
+
+  // Filter attachments for current chat
+  const currentChatAttachments = pendingAttachments.filter(
+    (a) => a.chatGuid === chatGuid
+  );
 
   const handleSend = useCallback(() => {
     if (pastedImage && onSendAttachment) {
@@ -97,33 +113,106 @@ export function InputBar({
     [text, onTyping]
   );
 
+  const handleFileSelect = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file && chatGuid) {
+        if (file.type.startsWith("image/")) {
+          // Add to attachment store instead of local state
+          addPendingAttachment(file, chatGuid);
+        } else if (onSendAttachment) {
+          onSendAttachment(file);
+        }
+      }
+      // Reset input so same file can be selected again
+      e.target.value = "";
+    },
+    [onSendAttachment, chatGuid, addPendingAttachment]
+  );
+
+  const handleAttachmentClick = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleEmojiSelect = useCallback(
+    (emoji: string) => {
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const newText = text.substring(0, start) + emoji + text.substring(end);
+
+      setText(newText);
+
+      // Set cursor position after emoji
+      setTimeout(() => {
+        textarea.focus();
+        textarea.setSelectionRange(start + emoji.length, start + emoji.length);
+      }, 0);
+    },
+    [text]
+  );
+
   const hasText = text.trim().length > 0;
   const canSend = (hasText || pastedImage) && !sending;
 
   const containerStyle: CSSProperties = {
     display: "flex",
-    alignItems: "flex-end",
+    alignItems: "center",
     gap: 6,
     padding: "8px 12px",
     borderTop: "1px solid var(--color-surface-variant)",
     backgroundColor: "var(--color-background)",
     minHeight: "var(--input-bar-min-height)",
+    position: "relative",
   };
 
   const inputWrapperStyle: CSSProperties = {
     flex: 1,
     display: "flex",
-    alignItems: "flex-end",
+    alignItems: "center",
     backgroundColor: "var(--color-surface-variant)",
     borderRadius: 20,
-    padding: "6px 12px",
-    minHeight: 36,
+    padding: "4px 12px",
+    minHeight: 34,
     gap: 6,
   };
 
   return (
-    <div style={containerStyle}>
-      {/* Pasted Image Preview */}
+    <div style={containerStyle} data-input-bar>
+      {/* Pending Attachments Preview */}
+      <AnimatePresence>
+        {currentChatAttachments.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 5 }}
+            transition={{ duration: 0.2 }}
+            style={{
+              position: "absolute",
+              bottom: "calc(100% + 8px)",
+              left: 12,
+              right: 12,
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+              maxHeight: 300,
+              overflowY: "auto",
+            }}
+          >
+            {currentChatAttachments.map((attachment) => (
+              <ImagePreviewCard
+                key={attachment.id}
+                attachment={attachment}
+                onRemove={removePendingAttachment}
+              />
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Pasted Image Preview (legacy) */}
       <AnimatePresence>
         {pastedImage && (
           <motion.div
@@ -188,8 +277,18 @@ export function InputBar({
         )}
       </AnimatePresence>
 
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt"
+        onChange={handleFileSelect}
+        style={{ display: "none" }}
+      />
+
       {/* Attachment / plus button */}
       <button
+        onClick={handleAttachmentClick}
         style={{
           width: 32,
           height: 32,
@@ -203,6 +302,7 @@ export function InputBar({
           fontWeight: 300,
           flexShrink: 0,
           cursor: "pointer",
+          alignSelf: "center",
         }}
         aria-label="Add attachment"
       >
@@ -225,16 +325,18 @@ export function InputBar({
             flex: 1,
             resize: "none",
             maxHeight: 150,
-            lineHeight: 1.4,
+            lineHeight: "20px",
             fontSize: "var(--font-body-medium)",
             color: "var(--color-on-surface)",
             background: "transparent",
+            padding: "4px 0",
+            margin: 0,
           }}
           aria-label="Message input"
         />
 
         {/* Right side buttons inside the pill */}
-        <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0, paddingBottom: 2 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
           {!hasText && (
             <>
               {/* Audio / waveform icon */}
@@ -247,7 +349,11 @@ export function InputBar({
               </InputBarIconButton>
 
               {/* Emoji / smiley face icon */}
-              <InputBarIconButton label="Emoji">
+              <InputBarIconButton
+                ref={emojiButtonRef}
+                label="Emoji"
+                onClick={() => setShowEmojiPicker((prev) => !prev)}
+              >
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                   <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.3" fill="none" />
                   <circle cx="5.5" cy="6.5" r="1" fill="currentColor" />
@@ -299,6 +405,17 @@ export function InputBar({
           )}
         </div>
       </div>
+
+      {/* Emoji picker */}
+      <AnimatePresence>
+        {showEmojiPicker && (
+          <EmojiPicker
+            onEmojiSelect={handleEmojiSelect}
+            onClose={() => setShowEmojiPicker(false)}
+            anchorRef={emojiButtonRef}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -310,25 +427,28 @@ interface InputBarIconButtonProps {
   onClick?: () => void;
 }
 
-function InputBarIconButton({ children, label, onClick }: InputBarIconButtonProps) {
-  return (
-    <button
-      onClick={onClick}
-      aria-label={label}
-      style={{
-        width: 24,
-        height: 24,
-        borderRadius: "50%",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        color: "var(--color-on-surface-variant)",
-        background: "transparent",
-        cursor: "pointer",
-        flexShrink: 0,
-      }}
-    >
-      {children}
-    </button>
-  );
-}
+const InputBarIconButton = React.forwardRef<HTMLButtonElement, InputBarIconButtonProps>(
+  ({ children, label, onClick }, ref) => {
+    return (
+      <button
+        ref={ref}
+        onClick={onClick}
+        aria-label={label}
+        style={{
+          width: 24,
+          height: 24,
+          borderRadius: "50%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "var(--color-on-surface-variant)",
+          background: "transparent",
+          cursor: "pointer",
+          flexShrink: 0,
+        }}
+      >
+        {children}
+      </button>
+    );
+  }
+);

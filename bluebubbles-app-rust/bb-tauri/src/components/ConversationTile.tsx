@@ -2,12 +2,12 @@
  * ConversationTile component - macOS Messages style.
  * Clean tile with rounded corners, blue selection highlight, no dividers.
  */
-import { useCallback, useState, memo, useMemo, type CSSProperties } from "react";
+import { useCallback, useState, memo, useMemo, useRef, type CSSProperties } from "react";
 import { Avatar, GroupAvatar } from "./Avatar";
 import type { ChatWithPreview } from "@/hooks/useTauri";
 import { parseBBDate } from "@/utils/dateUtils";
 import { useSettingsStore } from "@/store/settingsStore";
-import { getDemoName, getDemoMessageSnippet, generateDemoAvatar } from "@/utils/demoData";
+import { getDemoName, getDemoMessageSnippet, getDemoAvatarUrl } from "@/utils/demoData";
 
 interface ConversationTileProps {
   chat: ChatWithPreview;
@@ -23,7 +23,9 @@ export const ConversationTile = memo(function ConversationTile({
   onContextMenu,
 }: ConversationTileProps) {
   const [isHovered, setIsHovered] = useState(false);
-  const { demoMode } = useSettingsStore();
+  const { demoMode, showConversationDividers } = useSettingsStore();
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressStartRef = useRef<{ x: number; y: number } | null>(null);
 
   const chatData = chat.chat;
   const isGroup = chatData.participants.length > 1;
@@ -58,6 +60,39 @@ export const ConversationTile = memo(function ConversationTile({
     [onContextMenu, chatData.guid]
   );
 
+  const handlePointerDown = useCallback(
+    (event: React.PointerEvent) => {
+      if (event.pointerType !== "touch") return;
+      if (!onContextMenu) return;
+      longPressStartRef.current = { x: event.clientX, y: event.clientY };
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+      }
+      longPressTimerRef.current = setTimeout(() => {
+        const start = longPressStartRef.current;
+        if (!start) return;
+        onContextMenu(
+          chatData.guid,
+          {
+            clientX: start.x,
+            clientY: start.y,
+            preventDefault: () => {},
+            stopPropagation: () => {},
+          } as React.MouseEvent
+        );
+      }, 450);
+    },
+    [chatData.guid, onContextMenu]
+  );
+
+  const clearLongPress = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    longPressStartRef.current = null;
+  }, []);
+
   const tileStyle: CSSProperties = {
     display: "flex",
     alignItems: "center",
@@ -72,12 +107,14 @@ export const ConversationTile = memo(function ConversationTile({
         ? "var(--color-surface-variant)"
         : "transparent",
     position: "relative",
-    marginBottom: 1,
+    marginBottom: showConversationDividers ? 0 : 1,
+    borderBottom: showConversationDividers ? "1px solid var(--color-divider-subtle)" : undefined,
+    paddingBottom: showConversationDividers ? 7 : 8,
   };
 
   const titleColor = isActive ? "#FFFFFF" : "var(--color-on-surface)";
   const subtitleColor = isActive ? "rgba(255,255,255,0.75)" : "var(--color-on-surface-variant)";
-  const timeColor = isActive ? "rgba(255,255,255,0.6)" : "var(--color-outline)";
+  const timeColor = isActive ? "rgba(255,255,255,0.7)" : "var(--color-on-surface-variant)";
 
   return (
     <div
@@ -85,6 +122,16 @@ export const ConversationTile = memo(function ConversationTile({
       style={tileStyle}
       onClick={handleClick}
       onContextMenu={handleContextMenu}
+      onPointerDown={handlePointerDown}
+      onPointerUp={clearLongPress}
+      onPointerCancel={clearLongPress}
+      onPointerLeave={clearLongPress}
+      onPointerMove={(event) => {
+        if (event.pointerType !== "touch" || !longPressStartRef.current) return;
+        const dx = event.clientX - longPressStartRef.current.x;
+        const dy = event.clientY - longPressStartRef.current.y;
+        if (Math.hypot(dx, dy) > 8) clearLongPress();
+      }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       role="button"
@@ -112,7 +159,7 @@ export const ConversationTile = memo(function ConversationTile({
             return {
               name: demoMode ? getDemoName(participantName) : participantName,
               address: p.address,
-              avatarUrl: demoMode ? generateDemoAvatar(getDemoName(participantName), p.address) : undefined,
+              avatarUrl: demoMode ? getDemoAvatarUrl(getDemoName(participantName), p.address) : undefined,
             };
           })}
           size={44}
@@ -122,7 +169,7 @@ export const ConversationTile = memo(function ConversationTile({
           name={title}
           address={chatData.participants[0]?.address ?? chatData.guid}
           size={44}
-          avatarUrl={demoMode ? generateDemoAvatar(title, chatData.participants[0]?.address ?? chatData.guid) : undefined}
+          avatarUrl={demoMode ? getDemoAvatarUrl(title, chatData.participants[0]?.address ?? chatData.guid) : undefined}
         />
       )}
 

@@ -21,3 +21,4 @@ pub use models::fcm_data::FcmData;
 pub use models::theme::ThemeStruct;
 pub use models::scheduled_message::ScheduledMessage;
 pub use models::settings::Settings;
+pub use models::findmy::{FindMyLocationItem, FindMyDevice, FindMyLocation, FindMyAddress};

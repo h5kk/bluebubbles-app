@@ -1,29 +1,43 @@
 //! iCloud service endpoints.
 
 use bb_core::error::BbResult;
+use bb_models::FindMyLocationItem;
 use crate::client::ApiClient;
 use crate::response::ServerResponse;
 
 impl ApiClient {
-    /// Get FindMy devices.
-    pub async fn get_findmy_devices(&self) -> BbResult<Vec<serde_json::Value>> {
+    /// Get FindMy devices (raw JSON).
+    pub async fn get_findmy_devices_raw(&self) -> BbResult<Vec<serde_json::Value>> {
         let resp: ServerResponse<Vec<serde_json::Value>> =
             self.get_json("/icloud/findmy/devices").await?;
 
-        tracing::debug!("FindMy server response - status: {}, message: {}, data is_some: {}",
+        tracing::debug!("FindMy devices server response - status: {}, message: {}, data is_some: {}",
             resp.status, resp.message, resp.data.is_some());
 
         if let Some(ref data) = resp.data {
-            tracing::debug!("FindMy server response - data length: {}", data.len());
+            tracing::debug!("FindMy devices server response - data length: {}", data.len());
+            if !data.is_empty() {
+                tracing::trace!("FindMy devices sample: {:?}", data.first());
+            }
         } else {
-            tracing::debug!("FindMy server response - data is null");
+            tracing::warn!("FindMy devices server response - data is null (cache may be encrypted on macOS 14.4+)");
         }
 
         Ok(resp.data.unwrap_or_default())
     }
 
-    /// Refresh FindMy device locations. Uses extended timeout (12x).
-    pub async fn refresh_findmy_devices(&self) -> BbResult<Vec<serde_json::Value>> {
+    /// Get FindMy devices (typed).
+    pub async fn get_findmy_devices(&self) -> BbResult<Vec<FindMyLocationItem>> {
+        let raw = self.get_findmy_devices_raw().await?;
+        let devices: Vec<FindMyLocationItem> = raw
+            .into_iter()
+            .filter_map(|v| serde_json::from_value(v).ok())
+            .collect();
+        Ok(devices)
+    }
+
+    /// Refresh FindMy device locations (raw JSON). Uses extended timeout (12x).
+    pub async fn refresh_findmy_devices_raw(&self) -> BbResult<Vec<serde_json::Value>> {
         let resp = self
             .post_extended("/icloud/findmy/devices/refresh", &serde_json::json!({}))
             .await?;
@@ -32,21 +46,64 @@ impl ApiClient {
         Ok(resp.data.unwrap_or_default())
     }
 
-    /// Get FindMy friends.
-    pub async fn get_findmy_friends(&self) -> BbResult<Vec<serde_json::Value>> {
+    /// Refresh FindMy device locations. Uses extended timeout (12x).
+    pub async fn refresh_findmy_devices(&self) -> BbResult<Vec<FindMyLocationItem>> {
+        let raw = self.refresh_findmy_devices_raw().await?;
+        let devices: Vec<FindMyLocationItem> = raw
+            .into_iter()
+            .filter_map(|v| serde_json::from_value(v).ok())
+            .collect();
+        Ok(devices)
+    }
+
+    /// Get FindMy friends (raw JSON).
+    pub async fn get_findmy_friends_raw(&self) -> BbResult<Vec<serde_json::Value>> {
         let resp: ServerResponse<Vec<serde_json::Value>> =
             self.get_json("/icloud/findmy/friends").await?;
+
+        tracing::debug!("FindMy friends server response - status: {}, message: {}, data is_some: {}",
+            resp.status, resp.message, resp.data.is_some());
+
+        if let Some(ref data) = resp.data {
+            tracing::debug!("FindMy friends server response - data length: {}", data.len());
+            if !data.is_empty() {
+                tracing::trace!("FindMy friends sample: {:?}", data.first());
+            }
+        } else {
+            tracing::debug!("FindMy friends server response - data is null or empty");
+        }
+
         Ok(resp.data.unwrap_or_default())
     }
 
-    /// Refresh FindMy friend locations. Uses extended timeout (12x).
-    pub async fn refresh_findmy_friends(&self) -> BbResult<Vec<serde_json::Value>> {
+    /// Get FindMy friends (typed).
+    pub async fn get_findmy_friends(&self) -> BbResult<Vec<FindMyLocationItem>> {
+        let raw = self.get_findmy_friends_raw().await?;
+        let friends: Vec<FindMyLocationItem> = raw
+            .into_iter()
+            .filter_map(|v| serde_json::from_value(v).ok())
+            .collect();
+        Ok(friends)
+    }
+
+    /// Refresh FindMy friend locations (raw JSON). Uses extended timeout (12x).
+    pub async fn refresh_findmy_friends_raw(&self) -> BbResult<Vec<serde_json::Value>> {
         let resp = self
             .post_extended("/icloud/findmy/friends/refresh", &serde_json::json!({}))
             .await?;
         let resp: ServerResponse<Vec<serde_json::Value>> =
             ApiClient::parse_response(resp).await?;
         Ok(resp.data.unwrap_or_default())
+    }
+
+    /// Refresh FindMy friend locations. Uses extended timeout (12x).
+    pub async fn refresh_findmy_friends(&self) -> BbResult<Vec<FindMyLocationItem>> {
+        let raw = self.refresh_findmy_friends_raw().await?;
+        let friends: Vec<FindMyLocationItem> = raw
+            .into_iter()
+            .filter_map(|v| serde_json::from_value(v).ok())
+            .collect();
+        Ok(friends)
     }
 
     /// Get iCloud account info.

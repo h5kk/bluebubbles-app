@@ -8,9 +8,15 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 
 interface TitleBarProps {
   title?: string;
+  overlay?: boolean;
+  offsetLeft?: number;
 }
 
-export function TitleBar({ title = "BlueBubbles" }: TitleBarProps) {
+export function TitleBar({
+  title = "",
+  overlay = false,
+  offsetLeft = 0,
+}: TitleBarProps) {
   const [isMaximized, setIsMaximized] = useState(false);
 
   const handleMinimize = useCallback(async () => {
@@ -40,12 +46,14 @@ export function TitleBar({ title = "BlueBubbles" }: TitleBarProps) {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "var(--color-surface)",
-    borderBottom: "1px solid var(--color-surface-variant)",
+    backgroundColor: overlay ? "transparent" : "var(--color-surface)",
     userSelect: "none",
     WebkitUserSelect: "none",
-    position: "relative",
-    zIndex: 100,
+    position: overlay ? "absolute" : "relative",
+    top: overlay ? 0 : undefined,
+    left: overlay ? offsetLeft : undefined,
+    right: overlay ? 0 : undefined,
+    zIndex: 200,
   };
 
   const dragRegionStyle: CSSProperties = {
@@ -53,7 +61,7 @@ export function TitleBar({ title = "BlueBubbles" }: TitleBarProps) {
     height: "100%",
     display: "flex",
     alignItems: "center",
-    paddingLeft: 16,
+    paddingLeft: title ? 16 : 0,
     // @ts-expect-error Tauri-specific CSS property for drag region
     WebkitAppRegion: "drag",
   };
@@ -80,16 +88,18 @@ export function TitleBar({ title = "BlueBubbles" }: TitleBarProps) {
   return (
     <div style={barStyle} data-tauri-drag-region>
       <div style={dragRegionStyle} data-tauri-drag-region>
-        <span
-          style={{
-            fontSize: "var(--font-body-medium)",
-            fontWeight: 500,
-            color: "var(--color-on-surface)",
-            letterSpacing: "0.3px",
-          }}
-        >
-          {title}
-        </span>
+        {title ? (
+          <span
+            style={{
+              fontSize: "var(--font-body-medium)",
+              fontWeight: 500,
+              color: "var(--color-on-surface)",
+              letterSpacing: "0.3px",
+            }}
+          >
+            {title}
+          </span>
+        ) : null}
       </div>
 
       <div style={controlsStyle}>

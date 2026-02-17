@@ -1,7 +1,8 @@
 /**
  * Context menu component for right-click actions.
  */
-import { useEffect, useCallback, type CSSProperties } from "react";
+import { useEffect, useMemo, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 
 export interface ContextMenuItem {
@@ -21,36 +22,53 @@ interface ContextMenuProps {
 }
 
 export function ContextMenu({ open, x, y, items, onClose }: ContextMenuProps) {
-  const handleClick = useCallback(() => {
-    onClose();
-  }, [onClose]);
-
   useEffect(() => {
     if (open) {
       const handler = () => onClose();
       window.addEventListener("click", handler);
-      window.addEventListener("contextmenu", handler);
       return () => {
         window.removeEventListener("click", handler);
-        window.removeEventListener("contextmenu", handler);
       };
     }
   }, [open, onClose]);
 
+  const dividerCount = useMemo(() => items.filter((i) => i.divider).length, [items]);
+  const actionCount = items.length - dividerCount;
+  const estimatedHeight = useMemo(
+    () => actionCount * 34 + dividerCount * 9 + 8,
+    [actionCount, dividerCount]
+  );
+  const estimatedWidth = 200;
+
+  const clamped = useMemo(() => {
+    if (typeof window === "undefined") {
+      return { left: x, top: y };
+    }
+    const padding = 8;
+    const maxX = window.innerWidth - estimatedWidth - padding;
+    const maxY = window.innerHeight - estimatedHeight - padding;
+    return {
+      left: Math.max(padding, Math.min(x, maxX)),
+      top: Math.max(padding, Math.min(y, maxY)),
+    };
+  }, [x, y, estimatedHeight]);
+
   const menuStyle: CSSProperties = {
     position: "fixed",
-    top: y,
-    left: x,
+    top: clamped.top,
+    left: clamped.left,
     backgroundColor: "var(--color-surface)",
     borderRadius: 8,
     padding: "4px 0",
     boxShadow: "var(--elevation-3)",
-    zIndex: "var(--z-dropdown)" as string,
+    zIndex: 1000,
     minWidth: 180,
     border: "1px solid var(--color-surface-variant)",
   };
 
-  return (
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <AnimatePresence>
       {open && (
         <motion.div
@@ -60,6 +78,8 @@ export function ContextMenu({ open, x, y, items, onClose }: ContextMenuProps) {
           exit={{ opacity: 0, scale: 0.95 }}
           transition={{ duration: 0.1 }}
           onClick={(e) => e.stopPropagation()}
+          onContextMenu={(e) => e.stopPropagation()}
+          data-context-menu
         >
           {items.map((item, i) =>
             item.divider ? (
@@ -106,6 +126,7 @@ export function ContextMenu({ open, x, y, items, onClose }: ContextMenuProps) {
           )}
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }

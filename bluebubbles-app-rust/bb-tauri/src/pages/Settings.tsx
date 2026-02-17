@@ -13,6 +13,7 @@ import {
   tauriSyncFull,
   tauriSyncMessages,
   tauriCheckPrivateApiStatus,
+  tauriDetectLocalhost,
   type PrivateApiStatus,
 } from "@/hooks/useTauri";
 
@@ -542,6 +543,7 @@ function AppearancePanel() {
   } = useSettingsStore();
   const denseConversationTiles = settings["denseConversationTiles"] === "true";
   const showAvatarsInDMs = settings["showAvatarsInDMs"] !== "false";
+  const showConversationDividers = settings["showConversationDividers"] !== "false";
 
   return (
     <>
@@ -627,6 +629,12 @@ function AppearancePanel() {
           value={denseConversationTiles}
           onChange={(v) => updateSetting("denseConversationTiles", String(v))}
         />
+        <SettingsSwitch
+          label="Show Conversation Dividers"
+          subtitle="Display subtle separator lines between threads"
+          value={showConversationDividers}
+          onChange={(v) => updateSetting("showConversationDividers", String(v))}
+        />
       </SettingsSection>
 
       <SettingsSection title="Window">
@@ -657,6 +665,7 @@ function ChatPanel() {
   const showRepliesToPrevious = settings["showRepliesToPrevious"] !== "false";
   const filterUnknownSenders = settings["filterUnknownSenders"] === "true";
   const unarchiveOnNewMessage = settings["unarchiveOnNewMessage"] !== "false";
+  const headerAvatarInline = settings["headerAvatarInline"] !== "false";
 
   return (
     <>
@@ -672,6 +681,12 @@ function ChatPanel() {
           subtitle="See when someone is typing a message"
           value={showTypingIndicators}
           onChange={(v) => updateSetting("showTypingIndicators", String(v))}
+        />
+        <SettingsSwitch
+          label="Inline Header Avatar"
+          subtitle="Show the contact photo to the left of the name and iMessage label"
+          value={headerAvatarInline}
+          onChange={(v) => updateSetting("headerAvatarInline", String(v))}
         />
         <SettingsSwitch
           label="Show Delivery Timestamps"
@@ -1025,9 +1040,25 @@ function ServerPanel() {
   const [address, setAddress] = useState("");
   const [password, setPassword] = useState("");
   const [connectError, setConnectError] = useState<string | null>(null);
+  const { settings, updateSetting } = useSettingsStore();
+  const [localhostDetectStatus, setLocalhostDetectStatus] = useState<string | null>(null);
 
   const isConnected = status === "connected";
   const isConnecting = status === "connecting";
+  const localhostEnabled = (settings["useLocalhost"] ?? "").trim() !== "";
+  const useLocalIpv6 = settings["useLocalIpv6"] === "true";
+  const rememberPassword = settings["rememberPassword"] !== "false";
+
+  const handlePasteAddress = useCallback(async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text.trim()) {
+        setAddress(text.trim());
+      }
+    } catch {
+      // ignore clipboard errors (permissions, insecure context)
+    }
+  }, []);
 
   const handleConnect = useCallback(async () => {
     if (!address.trim() || !password.trim()) return;
@@ -1049,6 +1080,20 @@ function ServerPanel() {
   const handleDisconnect = useCallback(() => {
     reset();
   }, [reset]);
+
+  const handleDetectLocalhost = useCallback(async () => {
+    setLocalhostDetectStatus(null);
+    try {
+      const addr = await tauriDetectLocalhost();
+      setLocalhostDetectStatus(
+        addr ? `Connected to ${addr}` : "No local server detected"
+      );
+    } catch (err: unknown) {
+      setLocalhostDetectStatus(
+        err instanceof Error ? err.message : String(err)
+      );
+    }
+  }, []);
 
   const inputStyle: CSSProperties = {
     width: "100%",
@@ -1086,14 +1131,41 @@ function ServerPanel() {
               >
                 Server Address
               </label>
-              <input
-                type="text"
-                placeholder="http://192.168.1.100:1234"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                disabled={isConnecting}
-                style={inputStyle}
-              />
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <input
+                  type="text"
+                  placeholder="http://192.168.1.100:1234"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  disabled={isConnecting}
+                  style={{ ...inputStyle, flex: 1 }}
+                />
+                <button
+                  onClick={handlePasteAddress}
+                  disabled={isConnecting}
+                  aria-label="Paste server address"
+                  title="Paste"
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 8,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: "var(--color-surface-variant)",
+                    color: "var(--color-on-surface-variant)",
+                    border: "1px solid var(--color-outline)",
+                    cursor: isConnecting ? "not-allowed" : "pointer",
+                    opacity: isConnecting ? 0.6 : 1,
+                  }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <rect x="4" y="3" width="9" height="11" rx="2" stroke="currentColor" strokeWidth="1.4" />
+                    <path d="M6 2.5H10" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                    <rect x="3" y="5" width="6" height="9" rx="2" stroke="currentColor" strokeWidth="1.4" />
+                  </svg>
+                </button>
+              </div>
             </div>
             <div>
               <label
@@ -1118,6 +1190,13 @@ function ServerPanel() {
                 style={inputStyle}
               />
             </div>
+            <SettingsSwitch
+              label="Remember password on this device"
+              subtitle="Store the server password locally for auto-reconnect"
+              value={rememberPassword}
+              disabled={isConnecting}
+              onChange={(value) => updateSetting("rememberPassword", value ? "true" : "false")}
+            />
             {connectError && (
               <div
                 style={{
@@ -1167,7 +1246,58 @@ function ServerPanel() {
             >
               Disconnect
             </button>
+            <SettingsSwitch
+              label="Remember password on this device"
+              subtitle="Store the server password locally for auto-reconnect"
+              value={rememberPassword}
+              onChange={(value) => updateSetting("rememberPassword", value ? "true" : "false")}
+            />
           </div>
+        )}
+      </SettingsSection>
+
+      <SettingsSection title="Localhost Detection">
+        <SettingsSwitch
+          label="Detect Localhost Server"
+          subtitle="Use a local IP (port 1234) for lower latency on the same network"
+          value={localhostEnabled}
+          onChange={(v) => {
+            if (!v) {
+              updateSetting("useLocalhost", "");
+            } else {
+              updateSetting("useLocalhost", "1234");
+            }
+          }}
+        />
+        {localhostEnabled && (
+          <>
+            <SettingsSwitch
+              label="Prefer IPv6"
+              subtitle="Try local IPv6 addresses before IPv4"
+              value={useLocalIpv6}
+              onChange={(v) => updateSetting("useLocalIpv6", String(v))}
+            />
+            <SettingsButton
+              label="Detect Now"
+              subtitle="Run localhost detection immediately"
+              buttonLabel="Detect"
+              onClick={handleDetectLocalhost}
+              variant="outline"
+            />
+            {localhostDetectStatus && (
+              <div
+                style={{
+                  padding: "6px 10px",
+                  borderRadius: 6,
+                  backgroundColor: "var(--color-surface-variant)",
+                  color: "var(--color-on-surface-variant)",
+                  fontSize: "var(--font-body-small)",
+                }}
+              >
+                {localhostDetectStatus}
+              </div>
+            )}
+          </>
         )}
       </SettingsSection>
 

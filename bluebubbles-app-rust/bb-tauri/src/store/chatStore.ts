@@ -34,6 +34,7 @@ interface ChatState {
 }
 
 const PAGE_SIZE = 200;
+const MIN_REFRESH_INTERVAL_MS = 5000;
 
 export const useChatStore = create<ChatState>((set, get) => ({
   chats: [],
@@ -69,6 +70,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   refreshChats: async () => {
+    const { isRefreshing, lastRefreshTime } = get();
+
+    if (isRefreshing) return;
+    if (lastRefreshTime && Date.now() - lastRefreshTime < MIN_REFRESH_INTERVAL_MS) {
+      return;
+    }
+
     // Silent background refresh - does not set loading or clear chats
     set({ isRefreshing: true });
     try {

@@ -143,6 +143,7 @@ pub mod keys {
     pub const ICLOUD_ACCOUNT: &str = "iCloudAccount";
     pub const GUID_AUTH_KEY: &str = "guidAuthKey";
     pub const SERVER_ADDRESS: &str = "serverAddress";
+    pub const REMEMBER_PASSWORD: &str = "rememberPassword";
     pub const CUSTOM_HEADERS: &str = "customHeaders";
     pub const FINISHED_SETUP: &str = "finishedSetup";
     pub const REACHED_CONVERSATION_LIST: &str = "reachedConversationList";
