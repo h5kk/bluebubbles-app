@@ -22,6 +22,7 @@ import { LoadingLine } from "@/components/LoadingLine";
 import type { Message } from "@/hooks/useTauri";
 import { tauriSendTypingIndicator } from "@/hooks/useTauri";
 import { parseBBDateMs } from "@/utils/dateUtils";
+import { getDemoName, getDemoMessageSnippet, generateDemoAvatar } from "@/utils/demoData";
 
 export function ConversationView() {
   const { chatGuid } = useParams<{ chatGuid: string }>();
@@ -38,7 +39,7 @@ export function ConversationView() {
     sendMessage,
   } = useMessageStore();
   const { chats, selectChat, markChatRead } = useChatStore();
-  const { sendWithReturn, settings } = useSettingsStore();
+  const { sendWithReturn, settings, demoMode } = useSettingsStore();
   const { serverInfo } = useConnectionStore();
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -62,13 +63,12 @@ export function ConversationView() {
 
   const title = useMemo(() => {
     if (!chatPreview) return decodedGuid ?? "Chat";
-    return (
-      chatData?.display_name ||
+    const realTitle = chatData?.display_name ||
       chatPreview.participant_names.join(", ") ||
       chatData?.chat_identifier ||
-      "Unknown"
-    );
-  }, [chatPreview, chatData, decodedGuid]);
+      "Unknown";
+    return demoMode ? getDemoName(realTitle, isGroup) : realTitle;
+  }, [chatPreview, chatData, decodedGuid, demoMode, isGroup]);
 
   // Load messages when chat changes and mark as read
   useEffect(() => {
@@ -156,6 +156,17 @@ export function ConversationView() {
     [sendMessage, decodedGuid]
   );
 
+  // Attachment send handler
+  const handleSendAttachment = useCallback(
+    (file: File) => {
+      console.log("Sending attachment:", file.name, file.type, file.size);
+      // TODO: Implement actual attachment sending via Tauri command
+      // For now, just log it
+      alert(`Screenshot pasted! File: ${file.name} (${Math.round(file.size / 1024)}KB)\n\nAttachment sending not yet implemented in backend.`);
+    },
+    []
+  );
+
   // Group messages by sender for bubble grouping
   const groupedMessages = useMemo(() => {
     return messages.map((msg, idx) => {
@@ -195,15 +206,16 @@ export function ConversationView() {
         }
       }
 
+      const realSenderName = getSenderName(msg, chatPreview);
       return {
         message: msg,
         isFirstInGroup: !sameSenderAsPrev || showTimestamp,
         isLastInGroup: !sameSenderAsNext || nextHasTimestampBreak,
         showTimestamp,
-        senderName: getSenderName(msg, chatPreview),
+        senderName: demoMode && realSenderName ? getDemoName(realSenderName) : realSenderName,
       };
     });
-  }, [messages, chatPreview]);
+  }, [messages, chatPreview, demoMode]);
 
   // Memoize the reversed array to avoid allocating a new copy on every render
   const reversedMessages = useMemo(
@@ -281,10 +293,14 @@ export function ConversationView() {
         >
           {chatData && isGroup ? (
             <GroupAvatar
-              participants={chatData.participants.map((p, i) => ({
-                name: chatPreview?.participant_names[i] ?? p.address,
-                address: p.address,
-              }))}
+              participants={chatData.participants.map((p, i) => {
+                const participantName = chatPreview?.participant_names[i] ?? p.address;
+                return {
+                  name: demoMode ? getDemoName(participantName) : participantName,
+                  address: p.address,
+                  avatarUrl: demoMode ? generateDemoAvatar(getDemoName(participantName), p.address) : undefined,
+                };
+              })}
               size={32}
             />
           ) : (
@@ -292,6 +308,7 @@ export function ConversationView() {
               name={title}
               address={chatData?.participants[0]?.address ?? decodedGuid}
               size={32}
+              avatarUrl={demoMode ? generateDemoAvatar(title, chatData?.participants[0]?.address ?? decodedGuid) : undefined}
             />
           )}
           <div
@@ -319,7 +336,8 @@ export function ConversationView() {
             <span
               style={{
                 fontSize: 11,
-                color: "var(--color-outline)",
+                color: isImessage && !isGroup ? "#007AFF" : "var(--color-outline)",
+                fontWeight: 500,
               }}
             >
               {isGroup
@@ -438,6 +456,7 @@ export function ConversationView() {
       {/* Input bar */}
       <InputBar
         onSend={handleSend}
+        onSendAttachment={handleSendAttachment}
         onTyping={handleTypingChange}
         sending={sending}
         sendWithReturn={sendWithReturn}

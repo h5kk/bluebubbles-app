@@ -299,6 +299,10 @@ pub mod keys {
     pub const ALLOW_UPSIDE_DOWN_ROTATION: &str = "allowUpsideDownRotation";
     pub const LAST_REVIEW_REQUEST_TIMESTAMP: &str = "lastReviewRequestTimestamp";
     pub const DETAILS_MENU_ACTIONS: &str = "detailsMenuActions";
+
+    // OTP Detection
+    pub const OTP_DETECTION_ENABLED: &str = "otpDetectionEnabled";
+    pub const OTP_AUTO_COPY: &str = "otpAutoCopy";
 }
 
 #[cfg(test)]

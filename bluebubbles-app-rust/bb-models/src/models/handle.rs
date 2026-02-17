@@ -205,21 +205,19 @@ impl Handle {
         )
         .map_err(|e| BbError::Database(e.to_string()))?;
 
-        let id = conn.last_insert_rowid();
-        if id > 0 {
-            self.id = Some(id);
-        } else {
-            let existing_id: i64 = conn
-                .query_row(
-                    "SELECT id FROM handles WHERE unique_address_service = ?1",
-                    [&self.unique_address_service],
-                    |row| row.get(0),
-                )
-                .map_err(|e| BbError::Database(e.to_string()))?;
-            self.id = Some(existing_id);
-        }
+        // Always query for the real ID - last_insert_rowid() is unreliable for upserts
+        // because ON CONFLICT DO UPDATE doesn't change it, leaving stale values from
+        // previous INSERTs on the same connection.
+        let real_id: i64 = conn
+            .query_row(
+                "SELECT id FROM handles WHERE unique_address_service = ?1",
+                [&self.unique_address_service],
+                |row| row.get(0),
+            )
+            .map_err(|e| BbError::Database(e.to_string()))?;
+        self.id = Some(real_id);
 
-        Ok(self.id.unwrap_or(0))
+        Ok(real_id)
     }
 
     /// Update mutable fields on an existing handle.

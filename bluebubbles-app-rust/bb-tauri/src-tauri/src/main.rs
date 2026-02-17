@@ -9,6 +9,7 @@
 mod commands;
 mod state;
 mod menu;
+mod otp_detector;
 
 use std::path::PathBuf;
 use tracing::info;
@@ -89,6 +90,11 @@ fn main() {
             commands::edit_message,
             commands::unsend_message,
             commands::get_findmy_devices,
+            commands::refresh_findmy_devices,
+            commands::get_findmy_friends,
+            commands::refresh_findmy_friends,
+            commands::detect_otp_in_message,
+            commands::detect_otp_in_text,
         ])
         .setup(|app| {
             // Setup system tray

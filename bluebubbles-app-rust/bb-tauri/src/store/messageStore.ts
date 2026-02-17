@@ -24,6 +24,9 @@ interface MessageState {
 
 const MESSAGE_PAGE_SIZE = 25;
 
+/** Counter to track the latest loadMessages call and ignore stale responses. */
+let loadGeneration = 0;
+
 export const useMessageStore = create<MessageState>((set, get) => ({
   messages: [],
   loading: false,
@@ -34,17 +37,36 @@ export const useMessageStore = create<MessageState>((set, get) => ({
   offset: 0,
 
   loadMessages: async (chatGuid: string) => {
+    // Increment generation so any in-flight load becomes stale
+    const gen = ++loadGeneration;
+
     set({ loading: true, error: null, chatGuid, messages: [], offset: 0 });
 
     try {
-      const messages = await tauriGetMessages(chatGuid, null, MESSAGE_PAGE_SIZE);
+      const fetched = await tauriGetMessages(chatGuid, null, MESSAGE_PAGE_SIZE);
+
+      // If a newer loadMessages call was made while we were fetching,
+      // discard this result to avoid overwriting fresher state
+      if (gen !== loadGeneration) return;
+
+      // Preserve any optimistic messages that were added while loading
+      const { messages: currentMessages } = get();
+      const optimistic = currentMessages.filter(
+        (m) => m.guid != null && m.guid.startsWith("optimistic-")
+      );
+
+      // Merge: optimistic messages first, then fetched (deduped)
+      const fetchedGuids = new Set(fetched.map((m) => m.guid));
+      const kept = optimistic.filter((m) => !fetchedGuids.has(m.guid));
+
       set({
-        messages,
+        messages: [...kept, ...fetched],
         loading: false,
-        offset: messages.length,
-        hasMore: messages.length >= MESSAGE_PAGE_SIZE,
+        offset: fetched.length,
+        hasMore: fetched.length >= MESSAGE_PAGE_SIZE,
       });
     } catch (err) {
+      if (gen !== loadGeneration) return;
       set({
         error: err instanceof Error ? err.message : String(err),
         loading: false,
@@ -74,7 +96,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
   },
 
   sendMessage: async (text: string, effect?: string) => {
-    const { chatGuid, messages } = get();
+    const { chatGuid } = get();
     if (!chatGuid) return;
 
     // Create an optimistic message that appears immediately
@@ -106,8 +128,12 @@ export const useMessageStore = create<MessageState>((set, get) => ({
       associated_messages: [],
     };
 
-    // Show the message immediately
-    set({ sending: true, error: null, messages: [optimisticMsg, ...messages] });
+    // Show the message immediately - always read fresh state
+    set((state) => ({
+      sending: true,
+      error: null,
+      messages: [optimisticMsg, ...state.messages],
+    }));
 
     // Update sidebar chat preview optimistically
     useChatStore.getState().updateChatPreview(chatGuid, {
@@ -120,14 +146,12 @@ export const useMessageStore = create<MessageState>((set, get) => ({
       const msg = await tauriSendMessage(chatGuid, text, effect);
 
       // Replace the optimistic message with the real one from the server
-      const { messages: currentMessages } = get();
-      const updatedMessages = currentMessages.map((m) =>
-        m.guid === optimisticGuid ? msg : m
-      );
-      set({
-        messages: updatedMessages,
+      set((state) => ({
+        messages: state.messages.map((m) =>
+          m.guid === optimisticGuid ? msg : m
+        ),
         sending: false,
-      });
+      }));
 
       // Update sidebar with real server data
       useChatStore.getState().updateChatPreview(chatGuid, {
@@ -135,17 +159,20 @@ export const useMessageStore = create<MessageState>((set, get) => ({
         date_created: msg.date_created,
         is_from_me: true,
       });
+
+      // Refresh messages immediately after sending to get latest from server
+      setTimeout(() => {
+        get().loadMessages(chatGuid);
+      }, 500);
     } catch (err) {
       // Mark the optimistic message as failed instead of removing it
-      const { messages: currentMessages } = get();
-      const updatedMessages = currentMessages.map((m) =>
-        m.guid === optimisticGuid ? { ...m, error: 1 } : m
-      );
-      set({
-        messages: updatedMessages,
+      set((state) => ({
+        messages: state.messages.map((m) =>
+          m.guid === optimisticGuid ? { ...m, error: 1 } : m
+        ),
         error: err instanceof Error ? err.message : String(err),
         sending: false,
-      });
+      }));
     }
   },
 

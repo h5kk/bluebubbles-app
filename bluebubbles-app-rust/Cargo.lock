@@ -428,6 +428,8 @@ dependencies = [
  "bb-socket",
  "chrono",
  "dirs 5.0.1",
+ "lazy_static",
+ "regex",
  "serde",
  "serde_json",
  "tauri",

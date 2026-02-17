@@ -14,6 +14,7 @@ use bb_models::{Chat, Message, Contact, ThemeStruct, Settings};
 use bb_models::queries;
 
 use crate::state::AppState;
+use crate::otp_detector::{detect_otp, OtpDetection};
 
 // ─── Serializable response types for the frontend ───────────────────────────
 
@@ -57,7 +58,10 @@ fn parse_server_info(data: Option<&serde_json::Value>, api_root: Option<String>,
     ServerInfo {
         os_version: data.and_then(|d| d.get("osVersion")).and_then(|v| v.as_str()).map(String::from),
         server_version: data.and_then(|d| d.get("serverVersion")).and_then(|v| v.as_str()).map(String::from),
-        private_api: data.and_then(|d| d.get("privateAPI")).and_then(|v| v.as_bool()).unwrap_or(false),
+        private_api: data
+            .and_then(|d| d.get("private_api").or_else(|| d.get("privateAPI")))
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false),
         proxy_service: data.and_then(|d| d.get("proxyService")).and_then(|v| v.as_str()).map(String::from),
         helper_connected: data.and_then(|d| d.get("helperConnected")).and_then(|v| v.as_bool()).unwrap_or(false),
         detected_imessage: data.and_then(|d| d.get("detectediMessage")).and_then(|v| v.as_str()).map(String::from),
@@ -287,7 +291,7 @@ pub async fn refresh_chats(
             let count = data.len() as u32;
             for chat_json in data {
                 if let Ok(mut chat) = Chat::from_server_map(chat_json) {
-                    // Save participants (handles) first
+                    // Save participants (handles) first so they get valid IDs
                     for handle in &mut chat.participants {
                         let _ = handle.save(&conn);
                     }
@@ -717,89 +721,9 @@ pub async fn sync_contact_avatars(
     // After saving contacts, link them to handles by setting handle.contact_id.
     // This ensures batch_load_participants_with_contacts resolves names via the
     // fast first-pass JOIN rather than relying solely on address matching.
-    let linked = link_contacts_to_handles(&conn);
+    let linked = queries::link_contacts_to_handles(&conn).unwrap_or(0);
     info!("avatar sync: {total_contacts} contacts from server, {contacts_with_avatar_field} had avatar field, {avatars_synced} saved with avatar data, {linked} handles linked to contacts");
     Ok(avatars_synced)
-}
-
-/// Link contacts to handles by matching phone numbers and emails.
-/// Sets handle.contact_id for every handle whose address matches a contact,
-/// ensuring that batch_load_participants_with_contacts can resolve names
-/// via the fast first-pass JOIN on contact_id.
-fn link_contacts_to_handles(conn: &Connection) -> u32 {
-    let contacts = match queries::list_contacts(conn) {
-        Ok(c) => c,
-        Err(_) => return 0,
-    };
-    let handles = match queries::list_handles(conn) {
-        Ok(h) => h,
-        Err(_) => return 0,
-    };
-
-    // Build a lookup from normalized address -> contact local DB id
-    let mut addr_to_contact_id: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
-    for contact in &contacts {
-        let contact_id = match contact.id {
-            Some(id) => id,
-            None => continue,
-        };
-        for phone in contact.phone_list() {
-            let normalized = bb_models::models::contact::normalize_address(&phone);
-            addr_to_contact_id.insert(normalized.clone(), contact_id);
-            // Also index by digits-only (no '+') for cross-format matching
-            let digits_only: String = phone.chars().filter(|c| c.is_ascii_digit()).collect();
-            if !digits_only.is_empty() && digits_only != normalized {
-                addr_to_contact_id.insert(digits_only, contact_id);
-            }
-        }
-        for email in contact.email_list() {
-            addr_to_contact_id.insert(email.trim().to_lowercase(), contact_id);
-        }
-    }
-
-    let mut linked = 0u32;
-    for handle in &handles {
-        // Skip if already linked
-        if handle.contact_id.is_some() {
-            continue;
-        }
-        let handle_id = match handle.id {
-            Some(id) => id,
-            None => continue,
-        };
-
-        let addr = handle.address.trim();
-        let is_email = addr.contains('@');
-
-        let matched_contact_id = if is_email {
-            addr_to_contact_id.get(&addr.to_lowercase()).copied()
-        } else {
-            let normalized = bb_models::models::contact::normalize_address(addr);
-            let digits_only: String = addr.chars().filter(|c| c.is_ascii_digit()).collect();
-            addr_to_contact_id.get(&normalized).copied()
-                .or_else(|| addr_to_contact_id.get(&digits_only).copied())
-                .or_else(|| {
-                    // Try stripping leading '1' for US numbers
-                    if digits_only.len() == 11 && digits_only.starts_with('1') {
-                        addr_to_contact_id.get(&digits_only[1..]).copied()
-                    } else {
-                        None
-                    }
-                })
-        };
-
-        if let Some(contact_id) = matched_contact_id {
-            let result = conn.execute(
-                "UPDATE handles SET contact_id = ?1 WHERE id = ?2",
-                rusqlite::params![contact_id, handle_id],
-            );
-            if result.is_ok() {
-                linked += 1;
-            }
-        }
-    }
-
-    linked
 }
 
 // ─── Attachment commands ─────────────────────────────────────────────────────
@@ -865,7 +789,7 @@ pub async fn check_private_api_status(
     let data = response.data.as_ref();
     Ok(PrivateApiStatus {
         enabled: data
-            .and_then(|d| d.get("privateAPI"))
+            .and_then(|d| d.get("private_api").or_else(|| d.get("privateAPI")))
             .and_then(|v| v.as_bool())
             .unwrap_or(false),
         helper_connected: data
@@ -1038,7 +962,7 @@ pub async fn sync_full(state: State<'_, AppState>) -> Result<SyncResult, String>
     }
 
     // Link contacts to handles so name resolution works via the fast JOIN path
-    let linked = link_contacts_to_handles(&conn);
+    let linked = queries::link_contacts_to_handles(&conn).unwrap_or(0);
 
     let result = SyncResult {
         chats_synced,
@@ -1269,6 +1193,9 @@ pub async fn get_findmy_devices(
         .await
         .map_err(|e| format!("findmy failed: {e}"))?;
 
+    tracing::debug!("FindMy devices raw response: {} devices", devices.len());
+    tracing::debug!("First device (if any): {:?}", devices.first());
+
     let result: Vec<FindMyDeviceInfo> = devices
         .iter()
         .map(|d| {
@@ -1355,4 +1282,353 @@ pub async fn get_findmy_devices(
 
     info!("get_findmy_devices: {} devices", result.len());
     Ok(result)
+}
+
+/// Refresh FindMy device locations by triggering an iCloud refresh.
+/// This can take 30+ seconds as it contacts Apple's servers.
+#[tauri::command]
+pub async fn refresh_findmy_devices(
+    state: State<'_, AppState>,
+) -> Result<Vec<FindMyDeviceInfo>, String> {
+    info!("refresh_findmy_devices");
+    let api = state.api_client().await.map_err(|e| e.to_string())?;
+    let devices = api
+        .refresh_findmy_devices()
+        .await
+        .map_err(|e| format!("findmy refresh failed: {e}"))?;
+
+    let result: Vec<FindMyDeviceInfo> = devices
+        .iter()
+        .map(|d| {
+            let location = extract_findmy_location(d);
+
+            let is_online = d.get("deviceStatus")
+                .map(|v| {
+                    if let Some(s) = v.as_str() {
+                        s == "200" || s == "203"
+                    } else if let Some(n) = v.as_u64() {
+                        n == 200 || n == 203
+                    } else {
+                        false
+                    }
+                })
+                .unwrap_or(false);
+
+            let battery_status = d.get("batteryStatus").and_then(|v| {
+                if let Some(s) = v.as_str() {
+                    Some(s.to_string())
+                } else if let Some(n) = v.as_u64() {
+                    Some(n.to_string())
+                } else {
+                    None
+                }
+            });
+
+            FindMyDeviceInfo {
+                id: d.get("id")
+                    .or_else(|| d.get("identifier"))
+                    .or_else(|| d.get("deviceDiscoveryId"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                name: d.get("name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("Unknown")
+                    .to_string(),
+                model: d.get("deviceDisplayName")
+                    .or_else(|| d.get("modelDisplayName"))
+                    .or_else(|| d.get("deviceModel"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("Unknown")
+                    .to_string(),
+                device_class: d.get("deviceClass")
+                    .and_then(|v| v.as_str())
+                    .map(String::from),
+                raw_device_model: d.get("rawDeviceModel")
+                    .and_then(|v| v.as_str())
+                    .map(String::from),
+                battery_level: d.get("batteryLevel").and_then(|v| v.as_f64()),
+                battery_status,
+                latitude: location.and_then(|l| l.get("latitude")).and_then(|v| v.as_f64()),
+                longitude: location.and_then(|l| l.get("longitude")).and_then(|v| v.as_f64()),
+                location_timestamp: location
+                    .and_then(|l| l.get("timeStamp"))
+                    .and_then(|v| v.as_u64()),
+                location_type: location
+                    .and_then(|l| l.get("positionType"))
+                    .and_then(|v| v.as_str())
+                    .map(String::from),
+                address: extract_findmy_address(d),
+                is_old_location: location
+                    .and_then(|l| l.get("isOld"))
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false),
+                is_online,
+                is_mac: d.get("isMac")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false),
+                this_device: d.get("thisDevice")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false),
+                lost_mode_enabled: d.get("lostModeEnabled")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false),
+            }
+        })
+        .collect();
+
+    info!("refresh_findmy_devices: {} devices", result.len());
+    Ok(result)
+}
+
+// ─── FindMy Friends commands ────────────────────────────────────────────────
+
+/// Serializable FindMy friend for the frontend.
+#[derive(serde::Serialize, Clone, Debug)]
+pub struct FindMyFriendInfo {
+    pub id: String,
+    pub name: String,
+    pub latitude: Option<f64>,
+    pub longitude: Option<f64>,
+    pub address: Option<String>,
+    pub last_updated: Option<u64>,
+    pub status: Option<String>,
+    pub locating_in_progress: bool,
+}
+
+/// Helper: parse a list of friend JSON values into FindMyFriendInfo structs.
+fn parse_findmy_friends(friends: &[serde_json::Value]) -> Vec<FindMyFriendInfo> {
+    friends
+        .iter()
+        .map(|f| {
+            let location = f.get("location").filter(|l| !l.is_null())
+                .or_else(|| f.get("locationInfo").filter(|l| !l.is_null()));
+
+            let first = f.get("firstName").and_then(|v| v.as_str()).unwrap_or("");
+            let last = f.get("lastName").and_then(|v| v.as_str()).unwrap_or("");
+            let name = if first.is_empty() && last.is_empty() {
+                "Unknown".to_string()
+            } else {
+                format!("{first} {last}").trim().to_string()
+            };
+
+            // Try shortAddress first, then longAddress from the address sub-object
+            let address = f.get("address").and_then(|a| {
+                a.get("shortAddress")
+                    .and_then(|v| v.as_str())
+                    .or_else(|| a.get("longAddress").and_then(|v| v.as_str()))
+                    .map(String::from)
+            }).or_else(|| {
+                // Some responses have address fields at location level
+                location.and_then(|l| {
+                    l.get("shortAddress")
+                        .and_then(|v| v.as_str())
+                        .or_else(|| l.get("longAddress").and_then(|v| v.as_str()))
+                        .map(String::from)
+                })
+            });
+
+            FindMyFriendInfo {
+                id: f.get("id")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                name,
+                latitude: location.and_then(|l| l.get("latitude")).and_then(|v| v.as_f64()),
+                longitude: location.and_then(|l| l.get("longitude")).and_then(|v| v.as_f64()),
+                address,
+                last_updated: location
+                    .and_then(|l| l.get("timeStamp"))
+                    .and_then(|v| v.as_u64()),
+                status: f.get("status")
+                    .and_then(|v| v.as_str())
+                    .map(String::from),
+                locating_in_progress: f.get("locatingInProgress")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false),
+            }
+        })
+        .collect()
+}
+
+/// Get FindMy friends from the server.
+#[tauri::command]
+pub async fn get_findmy_friends(
+    state: State<'_, AppState>,
+) -> Result<Vec<FindMyFriendInfo>, String> {
+    info!("get_findmy_friends");
+    let api = state.api_client().await.map_err(|e| e.to_string())?;
+    let friends = api
+        .get_findmy_friends()
+        .await
+        .map_err(|e| format!("findmy friends failed: {e}"))?;
+
+    let result = parse_findmy_friends(&friends);
+    info!("get_findmy_friends: {} friends", result.len());
+    Ok(result)
+}
+
+/// Refresh FindMy friend locations by triggering an iCloud refresh.
+/// This can take 30+ seconds as it contacts Apple's servers.
+#[tauri::command]
+pub async fn refresh_findmy_friends(
+    state: State<'_, AppState>,
+) -> Result<Vec<FindMyFriendInfo>, String> {
+    info!("refresh_findmy_friends");
+    let api = state.api_client().await.map_err(|e| e.to_string())?;
+    let friends = api
+        .refresh_findmy_friends()
+        .await
+        .map_err(|e| format!("findmy friends refresh failed: {e}"))?;
+
+    let result = parse_findmy_friends(&friends);
+    info!("refresh_findmy_friends: {} friends", result.len());
+    Ok(result)
+}
+
+// ─── OTP Detection commands ──────────────────────────────────────────────────
+
+/// Detect OTP in a message by its GUID.
+/// Checks settings to see if OTP detection is enabled.
+/// Returns the detected OTP if found, or null if disabled/not found.
+#[tauri::command]
+pub async fn detect_otp_in_message(
+    state: State<'_, AppState>,
+    app: tauri::AppHandle,
+    message_guid: String,
+) -> Result<Option<OtpDetection>, String> {
+    debug!("detect_otp_in_message guid={message_guid}");
+
+    // Check if OTP detection is enabled
+    let conn = state.database.conn().map_err(|e| e.to_string())?;
+    let enabled = Settings::get_bool(&conn, bb_models::models::settings::keys::OTP_DETECTION_ENABLED)
+        .map_err(|e| e.to_string())?
+        .unwrap_or(true); // Default to enabled
+
+    if !enabled {
+        debug!("otp detection is disabled");
+        return Ok(None);
+    }
+
+    // Find the message
+    let message = Message::find_by_guid(&conn, &message_guid)
+        .map_err(|e| e.to_string())?;
+
+    let message = match message {
+        Some(m) => m,
+        None => {
+            debug!("message not found: {message_guid}");
+            return Ok(None);
+        }
+    };
+
+    // Get the message text
+    let text = match message.text {
+        Some(ref t) if !t.is_empty() => t,
+        _ => {
+            debug!("message has no text");
+            return Ok(None);
+        }
+    };
+
+    // Detect OTP
+    let detection = detect_otp(text);
+
+    if let Some(ref otp) = detection {
+        info!("otp detected in message {message_guid}: code={}, pattern={:?}", otp.code, otp.pattern);
+
+        // Emit event to frontend
+        let _ = app.emit("otp-detected", serde_json::json!({
+            "messageGuid": message_guid,
+            "code": otp.code,
+            "pattern": format!("{:?}", otp.pattern),
+            "chatId": message.chat_id,
+        }));
+
+        // Check if auto-copy is enabled
+        let auto_copy = Settings::get_bool(&conn, bb_models::models::settings::keys::OTP_AUTO_COPY)
+            .map_err(|e| e.to_string())?
+            .unwrap_or(false);
+
+        if auto_copy {
+            debug!("auto-copy enabled for otp: {}", otp.code);
+            // Note: Actual clipboard copy would be handled by frontend
+            // We just emit an additional event
+            let _ = app.emit("otp-auto-copy", serde_json::json!({
+                "code": otp.code,
+            }));
+        }
+    }
+
+    Ok(detection)
+}
+
+/// Detect OTP in arbitrary text.
+/// Does not check settings or emit events - just performs detection.
+/// Useful for testing or manual detection.
+#[tauri::command]
+pub async fn detect_otp_in_text(text: String) -> Result<Option<OtpDetection>, String> {
+    debug!("detect_otp_in_text text_len={}", text.len());
+    Ok(detect_otp(&text))
+}
+
+// ─── Helper function for message processing ─────────────────────────────────
+
+/// Process a newly received message for OTP detection.
+/// This is called internally when new messages arrive from the server.
+/// Can also be exposed as a command if needed for manual triggering.
+pub async fn process_message_for_otp(
+    state: &AppState,
+    app: &tauri::AppHandle,
+    message: &Message,
+) -> Result<Option<OtpDetection>, String> {
+    // Only process messages that are not from the user
+    if message.is_from_me {
+        return Ok(None);
+    }
+
+    // Check if OTP detection is enabled
+    let conn = state.database.conn().map_err(|e| e.to_string())?;
+    let enabled = Settings::get_bool(&conn, bb_models::models::settings::keys::OTP_DETECTION_ENABLED)
+        .map_err(|e| e.to_string())?
+        .unwrap_or(true);
+
+    if !enabled {
+        return Ok(None);
+    }
+
+    // Get message text
+    let text = match &message.text {
+        Some(t) if !t.is_empty() => t,
+        _ => return Ok(None),
+    };
+
+    // Detect OTP
+    let detection = detect_otp(text);
+
+    if let Some(ref otp) = detection {
+        info!("otp detected in new message: code={}, pattern={:?}", otp.code, otp.pattern);
+
+        // Emit event to frontend
+        let _ = app.emit("otp-detected", serde_json::json!({
+            "messageGuid": message.guid,
+            "code": otp.code,
+            "pattern": format!("{:?}", otp.pattern),
+            "chatId": message.chat_id,
+        }));
+
+        // Check auto-copy setting
+        let auto_copy = Settings::get_bool(&conn, bb_models::models::settings::keys::OTP_AUTO_COPY)
+            .map_err(|e| e.to_string())?
+            .unwrap_or(false);
+
+        if auto_copy {
+            debug!("auto-copy enabled, emitting otp-auto-copy event");
+            let _ = app.emit("otp-auto-copy", serde_json::json!({
+                "code": otp.code,
+            }));
+        }
+    }
+
+    Ok(detection)
 }

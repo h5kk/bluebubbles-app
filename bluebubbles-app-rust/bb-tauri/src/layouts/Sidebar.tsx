@@ -9,6 +9,7 @@ import { SearchBar } from "@/components/SearchBar";
 import { LoadingLine } from "@/components/LoadingLine";
 import { useChatStore } from "@/store/chatStore";
 import { useConnectionStore } from "@/store/connectionStore";
+import { useSettingsStore } from "@/store/settingsStore";
 import { tauriSyncFull, tauriSyncMessages } from "@/hooks/useTauri";
 
 interface SidebarProps {
@@ -20,6 +21,7 @@ export function Sidebar({ width = 340, children }: SidebarProps) {
   const navigate = useNavigate();
   const { searchQuery, setSearchQuery, refreshChats, isRefreshing, lastRefreshTime } = useChatStore();
   const { status } = useConnectionStore();
+  const { demoMode, updateSetting } = useSettingsStore();
   const [menuOpen, setMenuOpen] = useState(false);
 
   const sidebarStyle: CSSProperties = {
@@ -106,6 +108,14 @@ export function Sidebar({ width = 340, children }: SidebarProps) {
           <MenuDropdownItem
             label="Find My"
             onClick={() => { navigate("/findmy"); setMenuOpen(false); }}
+          />
+          <div style={{ height: 1, backgroundColor: "var(--color-outline)", opacity: 0.2, margin: "4px 0" }} />
+          <MenuToggleItem
+            label="Demo Mode"
+            checked={demoMode}
+            onChange={(checked) => {
+              updateSetting("demoMode", checked ? "true" : "false");
+            }}
           />
         </div>
       )}
@@ -489,6 +499,63 @@ function MenuDropdownItem({ label, onClick }: MenuDropdownItemProps) {
       }}
     >
       {label}
+    </button>
+  );
+}
+
+interface MenuToggleItemProps {
+  label: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}
+
+function MenuToggleItem({ label, checked, onChange }: MenuToggleItemProps) {
+  const [hovered, setHovered] = useState(false);
+
+  return (
+    <button
+      onClick={() => onChange(!checked)}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        width: "100%",
+        padding: "8px 16px",
+        fontSize: 13,
+        color: "var(--color-on-surface)",
+        backgroundColor: hovered ? "var(--color-surface-variant)" : "transparent",
+        cursor: "pointer",
+        transition: "background-color 80ms ease",
+      }}
+    >
+      <span>{label}</span>
+      <div
+        style={{
+          width: 42,
+          height: 24,
+          borderRadius: 12,
+          backgroundColor: checked ? "#34C759" : "var(--color-outline)",
+          transition: "background-color 150ms ease",
+          position: "relative",
+          opacity: checked ? 1 : 0.5,
+        }}
+      >
+        <div
+          style={{
+            width: 20,
+            height: 20,
+            borderRadius: 10,
+            backgroundColor: "white",
+            position: "absolute",
+            top: 2,
+            left: checked ? 20 : 2,
+            transition: "left 150ms ease",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+          }}
+        />
+      </div>
     </button>
   );
 }

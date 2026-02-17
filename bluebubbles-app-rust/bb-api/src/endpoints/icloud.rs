@@ -9,6 +9,16 @@ impl ApiClient {
     pub async fn get_findmy_devices(&self) -> BbResult<Vec<serde_json::Value>> {
         let resp: ServerResponse<Vec<serde_json::Value>> =
             self.get_json("/icloud/findmy/devices").await?;
+
+        tracing::debug!("FindMy server response - status: {}, message: {}, data is_some: {}",
+            resp.status, resp.message, resp.data.is_some());
+
+        if let Some(ref data) = resp.data {
+            tracing::debug!("FindMy server response - data length: {}", data.len());
+        } else {
+            tracing::debug!("FindMy server response - data is null");
+        }
+
         Ok(resp.data.unwrap_or_default())
     }
 
@@ -61,8 +71,63 @@ impl ApiClient {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::response::ServerResponse;
+
     #[test]
     fn test_icloud_endpoints_exist() {
         // Compile-time verification
+    }
+
+    #[test]
+    fn test_parse_findmy_null_data() {
+        // Test that null data is handled correctly
+        let json = r#"{"status": 200, "message": "Success", "data": null}"#;
+        let resp: ServerResponse<Vec<serde_json::Value>> = serde_json::from_str(json).unwrap();
+
+        assert_eq!(resp.status, 200);
+        assert_eq!(resp.message, "Success");
+        assert!(resp.data.is_none());
+
+        // Verify unwrap_or_default returns empty Vec
+        let devices = resp.data.unwrap_or_default();
+        assert_eq!(devices.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_findmy_empty_array() {
+        // Test that empty array is handled correctly
+        let json = r#"{"status": 200, "message": "Success", "data": []}"#;
+        let resp: ServerResponse<Vec<serde_json::Value>> = serde_json::from_str(json).unwrap();
+
+        assert_eq!(resp.status, 200);
+        assert!(resp.data.is_some());
+
+        let devices = resp.data.unwrap_or_default();
+        assert_eq!(devices.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_findmy_with_devices() {
+        // Test that actual device data is parsed
+        let json = r#"{
+            "status": 200,
+            "message": "Success",
+            "data": [
+                {
+                    "id": "device123",
+                    "name": "iPhone 13",
+                    "deviceDisplayName": "iPhone"
+                }
+            ]
+        }"#;
+        let resp: ServerResponse<Vec<serde_json::Value>> = serde_json::from_str(json).unwrap();
+
+        assert_eq!(resp.status, 200);
+        assert!(resp.data.is_some());
+
+        let devices = resp.data.unwrap_or_default();
+        assert_eq!(devices.len(), 1);
+        assert_eq!(devices[0]["id"].as_str().unwrap(), "device123");
     }
 }

@@ -921,6 +921,82 @@ pub fn delete_all_contacts(conn: &Connection) -> BbResult<usize> {
         .map_err(|e| BbError::Database(e.to_string()))
 }
 
+/// Link contacts to handles by matching phone numbers and emails.
+///
+/// Sets `handle.contact_id` for every handle whose address matches a contact,
+/// enabling `batch_load_participants_with_contacts` to resolve display names
+/// via the fast first-pass JOIN on `contact_id` rather than relying on the
+/// slower second-pass address matching.
+///
+/// Returns the number of handles that were linked.
+pub fn link_contacts_to_handles(conn: &Connection) -> BbResult<u32> {
+    let contacts = list_contacts(conn)?;
+    let handles = list_handles(conn)?;
+
+    // Build a lookup from normalized address -> contact local DB id
+    let mut addr_to_contact_id: HashMap<String, i64> = HashMap::new();
+    for contact in &contacts {
+        let contact_id = match contact.id {
+            Some(id) => id,
+            None => continue,
+        };
+        for phone in contact.phone_list() {
+            let normalized = crate::models::contact::normalize_address(&phone);
+            addr_to_contact_id.insert(normalized.clone(), contact_id);
+            // Also index by digits-only (no '+') for cross-format matching
+            let digits_only: String = phone.chars().filter(|c| c.is_ascii_digit()).collect();
+            if !digits_only.is_empty() && digits_only != normalized {
+                addr_to_contact_id.insert(digits_only, contact_id);
+            }
+        }
+        for email in contact.email_list() {
+            addr_to_contact_id.insert(email.trim().to_lowercase(), contact_id);
+        }
+    }
+
+    let mut linked = 0u32;
+    for handle in &handles {
+        // Skip if already linked
+        if handle.contact_id.is_some() {
+            continue;
+        }
+        let handle_id = match handle.id {
+            Some(id) => id,
+            None => continue,
+        };
+
+        let addr = handle.address.trim();
+        let is_email = addr.contains('@');
+
+        let matched_contact_id = if is_email {
+            addr_to_contact_id.get(&addr.to_lowercase()).copied()
+        } else {
+            let normalized = crate::models::contact::normalize_address(addr);
+            let digits_only: String = addr.chars().filter(|c| c.is_ascii_digit()).collect();
+            addr_to_contact_id.get(&normalized).copied()
+                .or_else(|| addr_to_contact_id.get(&digits_only).copied())
+                .or_else(|| {
+                    // Try stripping leading '1' for US numbers
+                    if digits_only.len() == 11 && digits_only.starts_with('1') {
+                        addr_to_contact_id.get(&digits_only[1..]).copied()
+                    } else {
+                        None
+                    }
+                })
+        };
+
+        if let Some(contact_id) = matched_contact_id {
+            conn.execute(
+                "UPDATE handles SET contact_id = ?1 WHERE id = ?2",
+                params![contact_id, handle_id],
+            ).map_err(|e| BbError::Database(e.to_string()))?;
+            linked += 1;
+        }
+    }
+
+    Ok(linked)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

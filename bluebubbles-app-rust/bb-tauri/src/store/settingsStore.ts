@@ -16,6 +16,9 @@ interface SettingsState {
   colorfulAvatars: boolean;
   colorfulBubbles: boolean;
   sendWithReturn: boolean;
+  demoMode: boolean;
+  otpDetection: boolean;
+  otpAutoCopy: boolean;
 
   loadSettings: () => Promise<void>;
   updateSetting: (key: string, value: string) => Promise<void>;
@@ -34,6 +37,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   colorfulAvatars: true,
   colorfulBubbles: false,
   sendWithReturn: false,
+  demoMode: false,
+  otpDetection: true,
+  otpAutoCopy: true,
 
   loadSettings: async () => {
     try {
@@ -49,6 +55,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         colorfulAvatars: settings["colorfulAvatars"] !== "false",
         colorfulBubbles: settings["colorfulBubbles"] === "true",
         sendWithReturn: settings["sendWithReturn"] === "true",
+        demoMode: settings["demoMode"] === "true",
+        otpDetection: settings["otpDetection"] !== "false",
+        otpAutoCopy: settings["otpAutoCopy"] !== "false",
       });
     } catch {
       set({ loaded: true });
@@ -66,6 +75,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     if (key === "colorfulAvatars") updated.colorfulAvatars = value !== "false";
     if (key === "colorfulBubbles") updated.colorfulBubbles = value === "true";
     if (key === "sendWithReturn") updated.sendWithReturn = value === "true";
+    if (key === "demoMode") updated.demoMode = value === "true";
+    if (key === "otpDetection") updated.otpDetection = value !== "false";
+    if (key === "otpAutoCopy") updated.otpAutoCopy = value !== "false";
 
     set(updated);
 

@@ -18,16 +18,25 @@ import { FindMy } from "@/pages/FindMy";
 import { ChatDetails } from "@/pages/ChatDetails";
 import { SyncScreen } from "@/pages/SyncScreen";
 import { NewMessage } from "@/pages/NewMessage";
+import { OtpDemo } from "@/pages/OtpDemo";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { OtpToastProvider } from "@/contexts/OtpToastContext";
+import { OtpToast } from "@/components/OtpToast";
+import { useOtpDetection } from "@/hooks/useOtpDetection";
+import { useOtpToast } from "@/contexts/OtpToastContext";
 
-export function App() {
+function AppContent() {
   // Initialize theme system
   useTheme();
+
+  // Initialize OTP detection
+  useOtpDetection();
 
   const { loadSettings, loaded: settingsLoaded } = useSettingsStore();
   const { status, setStatus, setServerInfo } = useConnectionStore();
   const { syncAndLoadAvatars, loadAvatars } = useContactStore();
   const refreshChats = useChatStore((s) => s.refreshChats);
+  const { otpData, dismissOtp } = useOtpToast();
   const [setupComplete, setSetupComplete] = useState<boolean | null>(null);
   const [messagesSynced, setMessagesSynced] = useState<boolean | null>(null);
 
@@ -132,41 +141,57 @@ export function App() {
   }
 
   return (
-    <BrowserRouter>
-      <Routes>
-        {/* Setup wizard - shown on first run */}
-        <Route
-          path="/setup"
-          element={
-            setupComplete ? <Navigate to="/" replace /> : <SetupWizard />
-          }
-        />
+    <>
+      {/* OTP Toast Notification */}
+      <OtpToast data={otpData} onDismiss={dismissOtp} />
 
-        {/* Main app layout - requires setup complete */}
-        {setupComplete ? (
-          <Route element={<AppLayout />}>
-            {/* Default: empty conversation view */}
-            <Route index element={<ConversationView />} />
+      <BrowserRouter>
+        <Routes>
+          {/* Setup wizard - shown on first run */}
+          <Route
+            path="/setup"
+            element={
+              setupComplete ? <Navigate to="/" replace /> : <SetupWizard />
+            }
+          />
 
-            {/* Conversation view */}
-            <Route path="chat/:chatGuid" element={<ConversationView />} />
+          {/* Main app layout - requires setup complete */}
+          {setupComplete ? (
+            <Route element={<AppLayout />}>
+              {/* Default: empty conversation view */}
+              <Route index element={<ConversationView />} />
 
-            {/* New message */}
-            <Route path="new" element={<NewMessage />} />
+              {/* Conversation view */}
+              <Route path="chat/:chatGuid" element={<ConversationView />} />
 
-            {/* Chat details */}
-            <Route path="chat/:chatGuid/details" element={<ChatDetails />} />
+              {/* New message */}
+              <Route path="new" element={<NewMessage />} />
 
-            {/* Settings */}
-            <Route path="settings" element={<Settings />} />
+              {/* Chat details */}
+              <Route path="chat/:chatGuid/details" element={<ChatDetails />} />
 
-            {/* Find My */}
-            <Route path="findmy" element={<FindMy />} />
-          </Route>
-        ) : (
-          <Route path="*" element={<Navigate to="/setup" replace />} />
-        )}
-      </Routes>
-    </BrowserRouter>
+              {/* Settings */}
+              <Route path="settings" element={<Settings />} />
+
+              {/* Find My */}
+              <Route path="findmy" element={<FindMy />} />
+
+              {/* OTP Demo */}
+              <Route path="otp-demo" element={<OtpDemo />} />
+            </Route>
+          ) : (
+            <Route path="*" element={<Navigate to="/setup" replace />} />
+          )}
+        </Routes>
+      </BrowserRouter>
+    </>
+  );
+}
+
+export function App() {
+  return (
+    <OtpToastProvider>
+      <AppContent />
+    </OtpToastProvider>
   );
 }

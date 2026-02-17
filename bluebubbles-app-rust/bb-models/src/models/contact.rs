@@ -256,18 +256,16 @@ impl Contact {
         )
         .map_err(|e| BbError::Database(e.to_string()))?;
 
-        let id = conn.last_insert_rowid();
-        if id > 0 {
-            self.id = Some(id);
-        } else if let Some(ref ext_id) = self.external_id {
-            let existing_id: i64 = conn
+        // Always query for the real ID - last_insert_rowid() is unreliable for upserts
+        if let Some(ref ext_id) = self.external_id {
+            let real_id: i64 = conn
                 .query_row(
                     "SELECT id FROM contacts WHERE external_id = ?1",
                     [ext_id],
                     |row| row.get(0),
                 )
                 .map_err(|e| BbError::Database(e.to_string()))?;
-            self.id = Some(existing_id);
+            self.id = Some(real_id);
         }
 
         Ok(self.id.unwrap_or(0))

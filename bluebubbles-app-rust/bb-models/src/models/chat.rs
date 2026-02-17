@@ -216,22 +216,44 @@ impl Chat {
 
     /// Get the display title for this chat.
     pub fn title(&self) -> String {
+        // 1. Explicit display name (set by user or group name)
         if let Some(ref name) = self.display_name {
             if !name.is_empty() {
                 return name.clone();
             }
         }
+        // 2. Participant display names (resolved from contacts)
+        if !self.participants.is_empty() {
+            let names: Vec<String> = self.participants
+                .iter()
+                .map(|h| h.display_name())
+                .collect();
+            // Only use participant names if at least one resolved to a contact name
+            // (not just a raw phone/email address)
+            if names.iter().any(|n| !n.starts_with('+') && !n.contains('@')) {
+                return names.join(", ");
+            }
+        }
+        if !self.participants.is_empty() {
+            return self.participants
+                .iter()
+                .map(|h| h.display_name())
+                .collect::<Vec<_>>()
+                .join(", ");
+        }
+        // 4. Chat identifier (raw phone/email from GUID)
         if let Some(ref ident) = self.chat_identifier {
             return ident.clone();
         }
-        if self.participants.is_empty() {
-            return "Unknown".to_string();
-        }
+        "Unknown".to_string()
+    }
+
+    /// Compute participant names as a separate list (for Tauri API).
+    pub fn participant_name_list(&self) -> Vec<String> {
         self.participants
             .iter()
             .map(|h| h.display_name())
-            .collect::<Vec<_>>()
-            .join(", ")
+            .collect()
     }
 
     /// Parse text_field_attachments JSON into a list of paths.
@@ -288,22 +310,17 @@ impl Chat {
         )
         .map_err(|e| BbError::Database(e.to_string()))?;
 
-        let id = conn.last_insert_rowid();
-        if id > 0 {
-            self.id = Some(id);
-        } else {
-            // Fetch the existing ID on conflict update
-            let existing_id: i64 = conn
-                .query_row(
-                    "SELECT id FROM chats WHERE guid = ?1",
-                    [&self.guid],
-                    |row| row.get(0),
-                )
-                .map_err(|e| BbError::Database(e.to_string()))?;
-            self.id = Some(existing_id);
-        }
+        // Always query for the real ID - last_insert_rowid() is unreliable for upserts
+        let real_id: i64 = conn
+            .query_row(
+                "SELECT id FROM chats WHERE guid = ?1",
+                [&self.guid],
+                |row| row.get(0),
+            )
+            .map_err(|e| BbError::Database(e.to_string()))?;
+        self.id = Some(real_id);
 
-        Ok(self.id.unwrap_or(0))
+        Ok(real_id)
     }
 
     /// Update mutable local-only fields (pinned, archived, mute, draft, etc).

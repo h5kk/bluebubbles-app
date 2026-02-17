@@ -727,6 +727,8 @@ function NotificationsPanel() {
   const showPreviews = settings["notifShowPreview"] !== "false";
   const notifyReactions = settings["notifyReactions"] !== "false";
   const notifOnChatList = settings["notifOnChatList"] === "true";
+  const otpDetection = settings["otpDetection"] !== "false";
+  const otpAutoCopy = settings["otpAutoCopy"] !== "false";
 
   return (
     <>
@@ -760,6 +762,22 @@ function NotificationsPanel() {
           subtitle="Show notifications even when the chat list is visible"
           value={notifOnChatList}
           onChange={(v) => updateSetting("notifOnChatList", String(v))}
+        />
+      </SettingsSection>
+
+      <SettingsSection title="One-Time Passwords">
+        <SettingsSwitch
+          label="OTP Detection"
+          subtitle="Automatically detect verification codes in messages"
+          value={otpDetection}
+          onChange={(v) => updateSetting("otpDetection", String(v))}
+        />
+        <SettingsSwitch
+          label="Auto-Copy OTP"
+          subtitle="Automatically copy codes to clipboard when detected"
+          value={otpAutoCopy}
+          onChange={(v) => updateSetting("otpAutoCopy", String(v))}
+          disabled={!otpDetection}
         />
       </SettingsSection>
     </>

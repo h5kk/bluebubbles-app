@@ -2,10 +2,12 @@
  * InputBar component - macOS Messages style.
  * Plus button (attachments), pill-shaped text field, audio/emoji/send buttons.
  */
-import { useState, useCallback, useRef, type KeyboardEvent, type CSSProperties } from "react";
+import { useState, useCallback, useRef, type KeyboardEvent, type ClipboardEvent, type CSSProperties } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface InputBarProps {
   onSend: (text: string) => void;
+  onSendAttachment?: (file: File) => void;
   onTyping?: (isTyping: boolean) => void;
   sending?: boolean;
   sendWithReturn?: boolean;
@@ -14,15 +16,22 @@ interface InputBarProps {
 
 export function InputBar({
   onSend,
+  onSendAttachment,
   onTyping,
   sending = false,
   sendWithReturn = false,
   placeholder = "iMessage",
 }: InputBarProps) {
   const [text, setText] = useState("");
+  const [pastedImage, setPastedImage] = useState<{ file: File; preview: string } | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const handleSend = useCallback(() => {
+    if (pastedImage && onSendAttachment) {
+      onSendAttachment(pastedImage.file);
+      setPastedImage(null);
+      return;
+    }
     const trimmed = text.trim();
     if (!trimmed || sending) return;
     onSend(trimmed);
@@ -30,7 +39,27 @@ export function InputBar({
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
-  }, [text, sending, onSend]);
+  }, [text, sending, onSend, pastedImage, onSendAttachment]);
+
+  const handlePaste = useCallback(
+    async (e: ClipboardEvent<HTMLTextAreaElement>) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith("image/")) {
+          e.preventDefault();
+          const file = item.getAsFile();
+          if (file) {
+            const preview = URL.createObjectURL(file);
+            setPastedImage({ file, preview });
+          }
+          break;
+        }
+      }
+    },
+    []
+  );
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -69,7 +98,7 @@ export function InputBar({
   );
 
   const hasText = text.trim().length > 0;
-  const canSend = hasText && !sending;
+  const canSend = (hasText || pastedImage) && !sending;
 
   const containerStyle: CSSProperties = {
     display: "flex",
@@ -94,6 +123,71 @@ export function InputBar({
 
   return (
     <div style={containerStyle}>
+      {/* Pasted Image Preview */}
+      <AnimatePresence>
+        {pastedImage && (
+          <motion.div
+            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 5, scale: 0.95 }}
+            transition={{ duration: 0.2 }}
+            style={{
+              position: "absolute",
+              bottom: "calc(100% + 8px)",
+              left: 12,
+              backgroundColor: "var(--color-surface)",
+              borderRadius: 12,
+              padding: 8,
+              boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+              border: "1px solid var(--color-surface-variant)",
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+            }}
+          >
+            <img
+              src={pastedImage.preview}
+              alt="Pasted screenshot"
+              style={{
+                width: 80,
+                height: 80,
+                borderRadius: 8,
+                objectFit: "cover",
+                border: "1px solid var(--color-outline)",
+              }}
+            />
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <span style={{ fontSize: 12, fontWeight: 500, color: "var(--color-on-surface)" }}>
+                Screenshot
+              </span>
+              <span style={{ fontSize: 11, color: "var(--color-on-surface-variant)" }}>
+                Press Enter to send
+              </span>
+            </div>
+            <button
+              onClick={() => setPastedImage(null)}
+              style={{
+                width: 20,
+                height: 20,
+                borderRadius: "50%",
+                backgroundColor: "var(--color-surface-variant)",
+                color: "var(--color-on-surface-variant)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                marginLeft: 8,
+              }}
+              aria-label="Remove screenshot"
+            >
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                <path d="M1 1L9 9M9 1L1 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Attachment / plus button */}
       <button
         style={{
@@ -124,6 +218,7 @@ export function InputBar({
           value={text}
           onChange={handleInput}
           onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
           placeholder={placeholder}
           rows={1}
           style={{

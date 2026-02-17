@@ -2,10 +2,12 @@
  * ConversationTile component - macOS Messages style.
  * Clean tile with rounded corners, blue selection highlight, no dividers.
  */
-import { useCallback, useState, memo, type CSSProperties } from "react";
+import { useCallback, useState, memo, useMemo, type CSSProperties } from "react";
 import { Avatar, GroupAvatar } from "./Avatar";
 import type { ChatWithPreview } from "@/hooks/useTauri";
 import { parseBBDate } from "@/utils/dateUtils";
+import { useSettingsStore } from "@/store/settingsStore";
+import { getDemoName, getDemoMessageSnippet, generateDemoAvatar } from "@/utils/demoData";
 
 interface ConversationTileProps {
   chat: ChatWithPreview;
@@ -21,16 +23,26 @@ export const ConversationTile = memo(function ConversationTile({
   onContextMenu,
 }: ConversationTileProps) {
   const [isHovered, setIsHovered] = useState(false);
+  const { demoMode } = useSettingsStore();
 
   const chatData = chat.chat;
   const isGroup = chatData.participants.length > 1;
-  const title =
-    chatData.display_name ||
-    chat.participant_names.join(", ") ||
-    chatData.chat_identifier ||
-    "Unknown";
-  const preview = chat.latest_message_text
-    || (chat.latest_message_date ? "\uD83D\uDCCE Attachment" : "");
+
+  // Apply demo mode transformations
+  const title = useMemo(() => {
+    const realTitle = chatData.display_name ||
+      chat.participant_names.join(", ") ||
+      chatData.chat_identifier ||
+      "Unknown";
+    return demoMode ? getDemoName(realTitle, isGroup) : realTitle;
+  }, [chatData.display_name, chat.participant_names, chatData.chat_identifier, demoMode, isGroup]);
+
+  const preview = useMemo(() => {
+    const realPreview = chat.latest_message_text
+      || (chat.latest_message_date ? "\uD83D\uDCCE Attachment" : "");
+    return demoMode ? getDemoMessageSnippet(realPreview) : realPreview;
+  }, [chat.latest_message_text, chat.latest_message_date, demoMode]);
+
   const isUnread = chatData.has_unread_message;
   const isMuted = chatData.mute_type != null;
 
@@ -95,10 +107,14 @@ export const ConversationTile = memo(function ConversationTile({
       {/* Avatar */}
       {isGroup ? (
         <GroupAvatar
-          participants={chatData.participants.map((p, i) => ({
-            name: chat.participant_names[i] ?? p.address,
-            address: p.address,
-          }))}
+          participants={chatData.participants.map((p, i) => {
+            const participantName = chat.participant_names[i] ?? p.address;
+            return {
+              name: demoMode ? getDemoName(participantName) : participantName,
+              address: p.address,
+              avatarUrl: demoMode ? generateDemoAvatar(getDemoName(participantName), p.address) : undefined,
+            };
+          })}
           size={44}
         />
       ) : (
@@ -106,6 +122,7 @@ export const ConversationTile = memo(function ConversationTile({
           name={title}
           address={chatData.participants[0]?.address ?? chatData.guid}
           size={44}
+          avatarUrl={demoMode ? generateDemoAvatar(title, chatData.participants[0]?.address ?? chatData.guid) : undefined}
         />
       )}
 
@@ -131,7 +148,7 @@ export const ConversationTile = memo(function ConversationTile({
           <span
             style={{
               fontSize: "var(--font-body-large)",
-              fontWeight: isUnread ? 600 : 400,
+              fontWeight: isUnread ? 600 : 500,
               color: titleColor,
               overflow: "hidden",
               textOverflow: "ellipsis",
