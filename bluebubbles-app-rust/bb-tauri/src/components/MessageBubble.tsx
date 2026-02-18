@@ -397,15 +397,6 @@ export const MessageBubble = memo(function MessageBubble({
   const hasError = message.error !== 0;
   const isGroupEvent = message.item_type !== 0;
 
-  // DEBUG: log messages that might have attachments
-  if (message.has_attachments || (message.attachments && message.attachments.length > 0)) {
-    console.log('[MSG_ATT]', message.guid, 'has_attachments:', message.has_attachments, 'att_count:', message.attachments?.length, 'atts:', message.attachments);
-  }
-  // Also log messages with no text (might be image-only)
-  if (!message.text && !isGroupEvent) {
-    console.log('[MSG_EMPTY]', message.guid, 'has_attachments:', message.has_attachments, 'att_count:', message.attachments?.length);
-  }
-
   const bubbleRef = useRef<HTMLDivElement>(null);
   const [tailClipPath, setTailClipPath] = useState<string | null>(null);
   const [isVisible, setIsVisible] = useState(true);
@@ -513,7 +504,7 @@ export const MessageBubble = memo(function MessageBubble({
     alignItems: isSent ? "flex-end" : "flex-start",
     paddingLeft: isSent ? 0 : "10px",
     paddingRight: isSent ? "10px" : 0,
-    marginTop: reactionGroups.length > 0 ? "10px" : 0,
+    marginTop: reactionGroups.length > 0 ? "14px" : 0,
     marginBottom: isLastInGroup ? "8px" : "2px",
   };
 
@@ -834,7 +825,7 @@ export const MessageBubble = memo(function MessageBubble({
           <div
             style={{
               position: "absolute",
-              top: -10,
+              top: -14,
               ...(isSent ? { left: 10 } : { right: 10 }),
               display: "inline-flex",
               gap: 4,

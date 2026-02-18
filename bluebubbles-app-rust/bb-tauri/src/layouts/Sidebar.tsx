@@ -21,10 +21,11 @@ interface SidebarProps {
 export function Sidebar({ width = 315, children }: SidebarProps) {
   const navigate = useNavigate();
   const { searchQuery, setSearchQuery, refreshChats, isRefreshing, lastRefreshTime } = useChatStore();
-  const { status, error, errorAt } = useConnectionStore();
+  const { status, error, errorAt, serverInfo } = useConnectionStore();
   const { demoMode, debugMode, updateSetting, themeMode, setThemeMode } = useSettingsStore();
   const messageCount = useMessageStore((s) => s.messages.length);
   const activeChatGuid = useMessageStore((s) => s.chatGuid);
+  const allMessages = useMessageStore((s) => s.messages);
   const [menuOpen, setMenuOpen] = useState(false);
   const [debugMenuOpen, setDebugMenuOpen] = useState(false);
   const chats = useChatStore((s) => s.chats);
@@ -134,6 +135,89 @@ export function Sidebar({ width = 315, children }: SidebarProps) {
     }
   }, [activeChatGuid, chats.length, messageCount, themeMode]);
 
+  const handleCopyMessageDiagnostics = useCallback(async () => {
+    const msgs = allMessages;
+    const chatGuid = activeChatGuid;
+
+    const lines: string[] = [
+      `BlueBubbles Message/Attachment Diagnostics`,
+      `Timestamp: ${new Date().toISOString()}`,
+      `Chat GUID: ${chatGuid ?? "none"}`,
+      `Messages loaded: ${msgs.length}`,
+      `Server: ${serverInfo?.api_root ?? "unknown"} v${serverInfo?.server_version ?? "?"}`,
+      `Private API: ${serverInfo?.private_api ?? false}`,
+      `Helper connected: ${serverInfo?.helper_connected ?? false}`,
+      ``,
+    ];
+
+    if (!chatGuid || msgs.length === 0) {
+      lines.push("No chat open or no messages loaded.");
+    } else {
+      // Aggregate stats
+      const withAttFlag = msgs.filter((m) => m.has_attachments);
+      const withAttArray = msgs.filter((m) => m.attachments && m.attachments.length > 0);
+      const noTextNoAtt = msgs.filter(
+        (m) => !m.text && (!m.attachments || m.attachments.length === 0) && m.item_type === 0
+      );
+      const flagButEmpty = msgs.filter(
+        (m) => m.has_attachments && (!m.attachments || m.attachments.length === 0)
+      );
+      const arrayButNoFlag = msgs.filter(
+        (m) => !m.has_attachments && m.attachments && m.attachments.length > 0
+      );
+
+      lines.push(`--- Aggregate Stats ---`);
+      lines.push(`  has_attachments=true:       ${withAttFlag.length}`);
+      lines.push(`  attachments.length > 0:     ${withAttArray.length}`);
+      lines.push(`  flag=true but array empty:  ${flagButEmpty.length} ${flagButEmpty.length > 0 ? "*** BUG ***" : ""}`);
+      lines.push(`  array>0 but flag=false:     ${arrayButNoFlag.length}`);
+      lines.push(`  no text + no attachments:   ${noTextNoAtt.length} (possibly image-only msgs with missing data)`);
+      lines.push(``);
+
+      // Detail for messages with attachments
+      if (withAttArray.length > 0) {
+        lines.push(`--- Messages WITH attachment data (first 20) ---`);
+        for (const m of withAttArray.slice(0, 20)) {
+          lines.push(`  [${m.guid ?? "?"}] from_me=${m.is_from_me} text="${(m.text ?? "").slice(0, 40)}" has_att=${m.has_attachments} att_count=${m.attachments.length}`);
+          for (const a of m.attachments) {
+            lines.push(`    att: guid=${a.guid ?? "?"} mime=${a.mime_type ?? "?"} name=${a.transfer_name ?? "?"} bytes=${a.total_bytes ?? "?"} ${a.width ?? "?"}x${a.height ?? "?"}`);
+          }
+        }
+        lines.push(``);
+      }
+
+      // Detail for suspicious messages (flag but no data, or empty with no text)
+      if (flagButEmpty.length > 0) {
+        lines.push(`--- BUG: has_attachments=true but attachments array is EMPTY ---`);
+        for (const m of flagButEmpty.slice(0, 20)) {
+          lines.push(`  [${m.guid ?? "?"}] from_me=${m.is_from_me} text="${(m.text ?? "").slice(0, 40)}" date=${m.date_created ?? "?"}`);
+        }
+        lines.push(``);
+      }
+
+      if (noTextNoAtt.length > 0) {
+        lines.push(`--- Empty messages (no text, no attachments, item_type=0) ---`);
+        for (const m of noTextNoAtt.slice(0, 20)) {
+          lines.push(`  [${m.guid ?? "?"}] from_me=${m.is_from_me} has_att=${m.has_attachments} date=${m.date_created ?? "?"}`);
+        }
+        lines.push(``);
+      }
+
+      // Full message dump for first 5 messages (JSON)
+      lines.push(`--- Raw JSON dump (first 5 messages) ---`);
+      for (const m of msgs.slice(0, 5)) {
+        lines.push(JSON.stringify(m, null, 2));
+        lines.push(``);
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(lines.join("\n"));
+    } catch {
+      // ignore clipboard errors
+    }
+  }, [allMessages, activeChatGuid, serverInfo]);
+
   return (
     <div style={wrapperStyle}>
       <div style={sidebarStyle} className="glass-panel">
@@ -224,6 +308,13 @@ export function Sidebar({ width = 315, children }: SidebarProps) {
                     label="Copy Layout Diagnostics"
                     onClick={() => {
                       handleCopyDiagnostics();
+                      setDebugMenuOpen(false);
+                    }}
+                  />
+                  <MenuDropdownItem
+                    label="Copy Message Diagnostics"
+                    onClick={() => {
+                      handleCopyMessageDiagnostics();
                       setDebugMenuOpen(false);
                     }}
                   />

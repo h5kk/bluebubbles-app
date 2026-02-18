@@ -74,23 +74,34 @@ function batteryColor(percent: number): string {
   return "#34C759";
 }
 
+function toRadians(deg: number): number {
+  return (deg * Math.PI) / 180;
+}
+
+function haversineMeters(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+): number {
+  const R = 6371000; // meters
+  const dLat = toRadians(lat2 - lat1);
+  const dLng = toRadians(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRadians(lat1)) *
+      Math.cos(toRadians(lat2)) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
 function getInitials(name: string): string {
   const parts = name.trim().split(/\s+/);
   if (parts.length === 0) return "?";
   if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
   return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
-}
-
-function statusColor(status: string | null): string {
-  if (!status) return "var(--color-outline)";
-  const s = status.toLowerCase();
-  if (s === "live" || s === "sharing") return "#34C759";
-  if (s === "shallow") return "#FF9500";
-  return "var(--color-outline)";
-}
-
-function statusLabel(status: string | null): string {
-  return status ?? "";
 }
 
 /** Detect if the current theme is a dark variant by checking the data-theme attribute. */
@@ -477,6 +488,81 @@ export function FindMy() {
     });
   }, [deduplicatedFriends, getAvatar]);
 
+  const referenceLocation = useMemo(() => {
+    const withLocation = devices.filter(
+      (d) => d.latitude != null && d.longitude != null
+    );
+    if (withLocation.length === 0) return null;
+    const thisDevice = withLocation.find((d) => d.this_device);
+    if (thisDevice) {
+      return { lat: thisDevice.latitude!, lng: thisDevice.longitude! };
+    }
+
+    let latest: FindMyDevice | null = null;
+    let latestTs = -Infinity;
+    for (const d of withLocation) {
+      const ts = d.location_timestamp != null ? normalizeEpochMs(d.location_timestamp) ?? 0 : 0;
+      if (ts > latestTs) {
+        latestTs = ts;
+        latest = d;
+      }
+    }
+    if (!latest) return null;
+    return { lat: latest.latitude!, lng: latest.longitude! };
+  }, [devices]);
+
+  const sortedDevices = useMemo(() => {
+    if (!referenceLocation) return devices;
+    const withDistance = devices.map((device) => {
+      if (device.latitude == null || device.longitude == null) {
+        return { device, distance: null as number | null };
+      }
+      return {
+        device,
+        distance: haversineMeters(
+          referenceLocation.lat,
+          referenceLocation.lng,
+          device.latitude,
+          device.longitude
+        ),
+      };
+    });
+    return withDistance
+      .sort((a, b) => {
+        if (a.distance == null && b.distance == null) return 0;
+        if (a.distance == null) return 1;
+        if (b.distance == null) return -1;
+        return a.distance - b.distance;
+      })
+      .map((entry) => entry.device);
+  }, [devices, referenceLocation]);
+
+  const sortedFriends = useMemo(() => {
+    if (!referenceLocation) return friends;
+    const withDistance = friends.map((friend) => {
+      if (friend.latitude == null || friend.longitude == null) {
+        return { friend, distance: null as number | null };
+      }
+      return {
+        friend,
+        distance: haversineMeters(
+          referenceLocation.lat,
+          referenceLocation.lng,
+          friend.latitude,
+          friend.longitude
+        ),
+      };
+    });
+    return withDistance
+      .sort((a, b) => {
+        if (a.distance == null && b.distance == null) return 0;
+        if (a.distance == null) return 1;
+        if (b.distance == null) return -1;
+        return a.distance - b.distance;
+      })
+      .map((entry) => entry.friend);
+  }, [friends, referenceLocation]);
+
   // ── Data Fetching ───────────────────────────────────────────────────────
 
   // Fetch data on mount if connected
@@ -490,7 +576,7 @@ export function FindMy() {
   // ── Computed Values ─────────────────────────────────────────────────────
 
   const loading = selectedTab === "devices" ? loadingDevices : loadingFriends;
-  const items = selectedTab === "devices" ? devices : friends;
+  const items = selectedTab === "devices" ? sortedDevices : sortedFriends;
 
   const allMapPositions = useMemo((): [number, number][] => {
     const positions: [number, number][] = [];
@@ -501,14 +587,14 @@ export function FindMy() {
         }
       });
     } else {
-      friends.forEach((f) => {
+      sortedFriends.forEach((f) => {
         if (f.latitude != null && f.longitude != null) {
           positions.push([f.latitude, f.longitude]);
         }
       });
     }
     return positions;
-  }, [selectedTab, devices, friends]);
+  }, [selectedTab, devices, sortedFriends]);
 
   const mapHeightPx = useMemo(() => {
     if (!contentHeight) return null;
@@ -938,9 +1024,9 @@ export function FindMy() {
         </AnimatePresence>
 
         {/* Device Cards */}
-        {selectedTab === "devices" && !loading && devices.length > 0 && (
+        {selectedTab === "devices" && !loading && sortedDevices.length > 0 && (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {devices.map((device) => (
+            {sortedDevices.map((device) => (
               <DeviceCard
                 key={device.id || device.name}
                 device={device}
@@ -958,9 +1044,9 @@ export function FindMy() {
         )}
 
         {/* Friend Cards */}
-        {selectedTab === "people" && !loading && friends.length > 0 && (
+        {selectedTab === "people" && !loading && sortedFriends.length > 0 && (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {friends.map((friend) => (
+            {sortedFriends.map((friend) => (
               <FriendCard
                 key={friend.id || friend.name}
                 friend={friend}
@@ -1305,8 +1391,6 @@ function FriendCard({ friend, isSelected, onClick }: FriendCardProps) {
   const [hovered, setHovered] = useState(false);
 
   const hasLocation = friend.latitude != null && friend.longitude != null;
-  const sColor = statusColor(friend.status);
-  const sLabel = statusLabel(friend.status);
 
   return (
     <motion.div
@@ -1338,19 +1422,6 @@ function FriendCard({ friend, isSelected, onClick }: FriendCardProps) {
           avatarUrl={friend.avatarUrl}
           size={40}
           showInitials
-        />
-        {/* Status dot on avatar */}
-        <span
-          style={{
-            position: "absolute",
-            bottom: -1,
-            right: -1,
-            width: 10,
-            height: 10,
-            borderRadius: "50%",
-            backgroundColor: sColor,
-            border: "2px solid var(--color-surface)",
-          }}
         />
       </div>
 
@@ -1401,36 +1472,14 @@ function FriendCard({ friend, isSelected, onClick }: FriendCardProps) {
         )}
       </div>
 
-      {/* Right: status badge */}
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "flex-end",
-          gap: 4,
-          flexShrink: 0,
-        }}
-      >
-        {sLabel && (
-          <span
-            style={{
-              fontSize: 10,
-              fontWeight: 500,
-              color: sColor,
-              backgroundColor:
-                sColor === "#34C759"
-                  ? "rgba(52,199,89,0.12)"
-                  : sColor === "#FF9500"
-                  ? "rgba(255,149,0,0.12)"
-                  : "var(--color-surface-variant)",
-              padding: "2px 8px",
-              borderRadius: 8,
-            }}
-          >
-            {sLabel}
-          </span>
-        )}
-        {friend.locating_in_progress && (
+      {friend.locating_in_progress && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            flexShrink: 0,
+          }}
+        >
           <span
             style={{
               fontSize: 9,
@@ -1440,8 +1489,8 @@ function FriendCard({ friend, isSelected, onClick }: FriendCardProps) {
           >
             Locating...
           </span>
-        )}
-      </div>
+        </div>
+      )}
     </motion.div>
   );
 }

@@ -22,15 +22,21 @@ export const ReactionBubble = memo(function ReactionBubble({
   accentColor,
   onClick,
 }: ReactionBubbleProps) {
-  const baseAccent = accentColor ?? (isSent
-    ? "var(--bubble-imessage-sent)"
-    : "var(--color-on-surface)");
-  const backgroundColor = isSent
-    ? `color-mix(in srgb, ${baseAccent} 14%, white)`
-    : "color-mix(in srgb, var(--color-surface) 92%, white)";
-  const borderColor = isSent
-    ? `color-mix(in srgb, ${baseAccent} 60%, transparent)`
-    : "color-mix(in srgb, var(--color-outline) 80%, transparent)";
+  const baseAccent =
+    accentColor ??
+    (isOwnReaction
+      ? "var(--bubble-imessage-sent)"
+      : isSent
+        ? "var(--bubble-imessage-sent)"
+        : "var(--color-on-surface)");
+  const backgroundColor =
+    isOwnReaction || isSent
+      ? `color-mix(in srgb, ${baseAccent} 14%, white)`
+      : "color-mix(in srgb, var(--color-surface) 92%, white)";
+  const borderColor =
+    isOwnReaction || isSent
+      ? `color-mix(in srgb, ${baseAccent} 60%, transparent)`
+      : "color-mix(in srgb, var(--color-outline) 80%, transparent)";
 
   const bubbleStyle: CSSProperties = {
     display: "inline-flex",

@@ -659,10 +659,7 @@ pub async fn get_messages(
             let too_few = local_msgs.len() < 5 && off == 0;
             if !local_msgs.is_empty() && !too_few {
                 // Hydrate attachments for ALL messages from local DB.
-                // We check every message (not just has_attachments=true) because
-                // the BB server omits hasAttachments, so older saved messages may
-                // have has_attachments=false despite having attachment rows in DB.
-                let mut any_expected_but_missing = false;
+                let mut needs_server_backfill = false;
                 for msg in &mut local_msgs {
                     if let Some(msg_id) = msg.id {
                         if let Ok(atts) = queries::load_attachments_for_message(&conn, msg_id) {
@@ -671,9 +668,23 @@ pub async fn get_messages(
                                 msg.has_attachments = true;
                             } else if msg.has_attachments {
                                 // Message claims attachments but none in DB
-                                any_expected_but_missing = true;
+                                needs_server_backfill = true;
                             }
                         }
+                    }
+                    // Detect "empty body" messages: no text, no attachments,
+                    // not a group event, not a reaction. These are almost
+                    // certainly image/attachment-only messages whose attachment
+                    // data was never saved to local DB.
+                    if !needs_server_backfill
+                        && msg.text.is_none()
+                        && msg.attachments.is_empty()
+                        && msg.item_type == 0
+                        && msg.associated_message_type.is_none()
+                    {
+                        debug!("detected empty-body msg {} - likely missing attachment data",
+                            msg.guid.as_deref().unwrap_or("?"));
+                        needs_server_backfill = true;
                     }
                 }
                 // Debug: log attachment hydration results
@@ -682,12 +693,10 @@ pub async fn get_messages(
                 debug!("local DB: {} msgs, {} with has_attachments=true, {} total attachments hydrated",
                     local_msgs.len(), has_att_count, att_count);
 
-                // If any messages claim to have attachments but none were found in DB,
-                // fall through to server to backfill attachment data
-                if !any_expected_but_missing {
+                if !needs_server_backfill {
                     return Ok(local_msgs);
                 }
-                debug!("chat {} has messages with missing attachments, fetching from server to backfill", chat_guid);
+                debug!("chat {} needs server backfill for missing attachment data", chat_guid);
             }
 
             if too_few && !local_msgs.is_empty() {
