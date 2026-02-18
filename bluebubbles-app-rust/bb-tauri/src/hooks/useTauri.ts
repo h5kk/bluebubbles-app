@@ -465,3 +465,24 @@ export async function tauriGetMcpStatus(): Promise<McpStatusInfo> {
 export async function tauriRegenerateMcpToken(): Promise<string> {
   return invoke<string>("regenerate_mcp_token");
 }
+
+// ─── Notification helpers ────────────────────────────────────────────────────
+
+/** Send a native desktop notification via Tauri plugin. */
+export async function tauriSendNotification(title: string, body: string): Promise<void> {
+  const {
+    isPermissionGranted,
+    requestPermission,
+    sendNotification,
+  } = await import("@tauri-apps/plugin-notification");
+
+  let granted = await isPermissionGranted();
+  if (!granted) {
+    const permission = await requestPermission();
+    granted = permission === "granted";
+  }
+
+  if (granted) {
+    sendNotification({ title, body });
+  }
+}

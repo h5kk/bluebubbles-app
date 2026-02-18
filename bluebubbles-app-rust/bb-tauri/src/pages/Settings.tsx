@@ -9,6 +9,7 @@ import { useSettingsStore } from "@/store/settingsStore";
 import { useConnectionStore } from "@/store/connectionStore";
 import { useTheme, type ThemeMode } from "@/hooks/useTheme";
 import { Toast } from "@/components/Toast";
+import { playNotificationSound, playSentSound, NOTIFICATION_SOUNDS } from "@/utils/notificationSound";
 import {
   tauriConnect,
   tauriSyncFull,
@@ -768,39 +769,48 @@ function NotificationsPanel() {
   const showPreviews = settings["notifShowPreview"] !== "false";
   const notifyReactions = settings["notifyReactions"] !== "false";
   const notifOnChatList = settings["notifOnChatList"] === "true";
+  const notifShowSender = settings["notifShowSender"] !== "false";
+  const notifGroupChats = settings["notifGroupChats"] !== "false";
+  const notifMuteUnknown = settings["notifMuteUnknown"] === "true";
+  const notifSound = settings["notifSound"] || "default";
+  const sendSoundEnabled = settings["sendSoundEnabled"] !== "false";
   const otpDetection = settings["otpDetection"] !== "false";
   const otpAutoCopy = settings["otpAutoCopy"] !== "false";
   const [testToast, setTestToast] = useState<string | null>(null);
 
   const handleTestNotification = useCallback(async () => {
-    const title = "BlueBubbles";
+    const title = showPreviews && notifShowSender ? "John Appleseed" : "BlueBubbles";
     const body = showPreviews
       ? "Test message: This is how notifications will look."
-      : "Test message received.";
+      : "New message received.";
 
     try {
-      if ("Notification" in window) {
-        if (Notification.permission === "default") {
-          const permission = await Notification.requestPermission();
-          if (permission !== "granted") {
-            setTestToast("Notifications are blocked. Enable them in system settings.");
-            return;
-          }
-        }
+      const {
+        isPermissionGranted,
+        requestPermission,
+        sendNotification,
+      } = await import("@tauri-apps/plugin-notification");
 
-        if (Notification.permission === "granted") {
-          // Web Notification API (Tauri will route to native notifications)
-          new Notification(title, { body, silent: !soundEnabled });
-          setTestToast("Test notification sent.");
-          return;
-        }
+      let granted = await isPermissionGranted();
+      if (!granted) {
+        const permission = await requestPermission();
+        granted = permission === "granted";
       }
 
-      setTestToast("Notifications are unavailable on this platform.");
-    } catch {
+      if (granted) {
+        sendNotification({ title, body });
+        if (soundEnabled && notifSound !== "none") {
+          playNotificationSound(notifSound);
+        }
+        setTestToast("Test notification sent.");
+      } else {
+        setTestToast("Notifications are blocked. Enable them in system settings.");
+      }
+    } catch (err) {
+      console.error("notification error:", err);
       setTestToast("Failed to send test notification.");
     }
-  }, [showPreviews, soundEnabled]);
+  }, [showPreviews, notifShowSender, soundEnabled, notifSound]);
 
   return (
     <>
@@ -812,29 +822,148 @@ function NotificationsPanel() {
           onChange={(v) => updateSetting("notificationsEnabled", String(v))}
         />
         <SettingsSwitch
-          label="Notification Sound"
-          subtitle="Play a sound when a new message arrives"
-          value={soundEnabled}
-          onChange={(v) => updateSetting("soundEnabled", String(v))}
+          label="Show Sender Name"
+          subtitle="Display who sent the message in the notification title"
+          value={notifShowSender}
+          disabled={!notificationsEnabled}
+          onChange={(v) => updateSetting("notifShowSender", String(v))}
         />
         <SettingsSwitch
           label="Show Message Preview"
-          subtitle="Display message content in notification"
+          subtitle="Display message content in notification body"
           value={showPreviews}
+          disabled={!notificationsEnabled}
           onChange={(v) => updateSetting("notifShowPreview", String(v))}
         />
         <SettingsSwitch
           label="Notify for Reactions"
           subtitle="Receive notifications when someone reacts to your messages"
           value={notifyReactions}
+          disabled={!notificationsEnabled}
           onChange={(v) => updateSetting("notifyReactions", String(v))}
+        />
+        <SettingsSwitch
+          label="Group Chat Notifications"
+          subtitle="Show notifications for group conversations"
+          value={notifGroupChats}
+          disabled={!notificationsEnabled}
+          onChange={(v) => updateSetting("notifGroupChats", String(v))}
         />
         <SettingsSwitch
           label="Notify on Chat List"
           subtitle="Show notifications even when the chat list is visible"
           value={notifOnChatList}
+          disabled={!notificationsEnabled}
           onChange={(v) => updateSetting("notifOnChatList", String(v))}
         />
+        <SettingsSwitch
+          label="Mute Unknown Senders"
+          subtitle="Suppress notifications from contacts not in your address book"
+          value={notifMuteUnknown}
+          disabled={!notificationsEnabled}
+          onChange={(v) => updateSetting("notifMuteUnknown", String(v))}
+        />
+      </SettingsSection>
+
+      <SettingsSection title="Sound">
+        <SettingsSwitch
+          label="Notification Sound"
+          subtitle="Play a sound when a new message arrives"
+          value={soundEnabled}
+          disabled={!notificationsEnabled}
+          onChange={(v) => updateSetting("soundEnabled", String(v))}
+        />
+        <SettingsTile
+          label="Sound Style"
+          subtitle="Choose the notification alert tone"
+          trailing={
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <select
+                value={notifSound}
+                onChange={(e) => updateSetting("notifSound", e.target.value)}
+                disabled={!soundEnabled || !notificationsEnabled}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: 8,
+                  border: "1px solid var(--color-outline)",
+                  backgroundColor: "var(--color-surface-variant)",
+                  color: "var(--color-on-surface)",
+                  fontSize: "var(--font-body-medium)",
+                  cursor: !soundEnabled || !notificationsEnabled ? "not-allowed" : "pointer",
+                  opacity: !soundEnabled || !notificationsEnabled ? 0.5 : 1,
+                  maxWidth: 200,
+                }}
+              >
+                {NOTIFICATION_SOUNDS.map((s) => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
+              <button
+                onClick={() => playNotificationSound(notifSound)}
+                disabled={!soundEnabled || !notificationsEnabled || notifSound === "none"}
+                title="Preview sound"
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 8,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: "var(--color-surface-variant)",
+                  color: "var(--color-on-surface-variant)",
+                  border: "1px solid var(--color-outline)",
+                  cursor: !soundEnabled || !notificationsEnabled || notifSound === "none" ? "not-allowed" : "pointer",
+                  opacity: !soundEnabled || !notificationsEnabled || notifSound === "none" ? 0.5 : 1,
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+                </svg>
+              </button>
+            </div>
+          }
+        />
+        <SettingsSwitch
+          label="Outgoing Message Sound"
+          subtitle="Play the iMessage 'swoosh' sound when you send a message"
+          value={sendSoundEnabled}
+          onChange={(v) => updateSetting("sendSoundEnabled", String(v))}
+        />
+        <SettingsTile
+          label="Preview Send Sound"
+          subtitle="Hear the outgoing message sound"
+          trailing={
+            <button
+              onClick={() => playSentSound()}
+              disabled={!sendSoundEnabled}
+              title="Preview send sound"
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 8,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "var(--color-surface-variant)",
+                color: "var(--color-on-surface-variant)",
+                border: "1px solid var(--color-outline)",
+                cursor: !sendSoundEnabled ? "not-allowed" : "pointer",
+                opacity: !sendSoundEnabled ? 0.5 : 1,
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+              </svg>
+            </button>
+          }
+        />
+      </SettingsSection>
+
+      <SettingsSection title="Test">
         <SettingsButton
           label="Send Test Notification"
           subtitle="Simulate a new message notification"
@@ -1295,33 +1424,128 @@ function ServerPanel() {
             </button>
           </div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div
               style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
                 fontSize: "var(--font-body-medium)",
                 color: "var(--color-primary)",
                 fontWeight: 600,
               }}
             >
+              <span
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: "50%",
+                  backgroundColor: "var(--color-primary)",
+                  display: "inline-block",
+                }}
+              />
               Connected
             </div>
-            <button
-              onClick={handleDisconnect}
-              style={{
-                ...buttonStyle,
-                backgroundColor: "var(--color-error)",
-                color: "var(--color-on-error, #fff)",
-                alignSelf: "flex-start",
-              }}
-            >
-              Disconnect
-            </button>
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "var(--font-body-medium)",
+                  color: "var(--color-on-surface)",
+                  marginBottom: 4,
+                }}
+              >
+                Server Address
+              </label>
+              <input
+                type="text"
+                value={address || settings["serverAddress"] || ""}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="http://192.168.1.100:1234"
+                style={inputStyle}
+              />
+            </div>
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "var(--font-body-medium)",
+                  color: "var(--color-on-surface)",
+                  marginBottom: 4,
+                }}
+              >
+                Password
+              </label>
+              <input
+                type="password"
+                value={password || settings["guidAuthKey"] || ""}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Server password"
+                style={inputStyle}
+              />
+            </div>
             <SettingsSwitch
               label="Remember password on this device"
               subtitle="Store the server password locally for auto-reconnect"
               value={rememberPassword}
               onChange={(value) => updateSetting("rememberPassword", value ? "true" : "false")}
             />
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                onClick={() => {
+                  const addr = address.trim() || settings["serverAddress"] || "";
+                  const pw = password.trim() || settings["guidAuthKey"] || "";
+                  if (addr && pw) {
+                    setAddress(addr);
+                    setPassword(pw);
+                    setConnectError(null);
+                    setStatus("connecting");
+                    tauriConnect(addr, pw)
+                      .then((info) => {
+                        setServerInfo(info);
+                        setStatus("connected");
+                        setError(null);
+                      })
+                      .catch((err: unknown) => {
+                        const msg = err instanceof Error ? err.message : String(err);
+                        setConnectError(msg);
+                        setStatus("error");
+                        setError(msg);
+                      });
+                  }
+                }}
+                style={{
+                  ...buttonStyle,
+                  backgroundColor: "var(--color-primary)",
+                  color: "var(--color-on-primary)",
+                }}
+              >
+                Reconnect
+              </button>
+              <button
+                onClick={handleDisconnect}
+                style={{
+                  ...buttonStyle,
+                  backgroundColor: "var(--color-error)",
+                  color: "var(--color-on-error, #fff)",
+                }}
+              >
+                Disconnect
+              </button>
+            </div>
+            {connectError && (
+              <div
+                style={{
+                  fontSize: "var(--font-body-small)",
+                  color: "var(--color-error)",
+                  padding: "6px 10px",
+                  borderRadius: 6,
+                  backgroundColor: "var(--color-error-container)",
+                }}
+              >
+                {connectError}
+              </div>
+            )}
           </div>
         )}
       </SettingsSection>
@@ -1373,6 +1597,21 @@ function ServerPanel() {
 
       {isConnected && (
         <SettingsSection title="Server Information">
+          <SettingsTile
+            label="Server Address"
+            trailing={
+              <span
+                style={{
+                  color: "var(--color-on-surface-variant)",
+                  fontSize: "var(--font-body-small)",
+                  userSelect: "text",
+                  cursor: "text",
+                }}
+              >
+                {serverInfo?.api_root ?? "Unknown"}
+              </span>
+            }
+          />
           <SettingsTile
             label="Server Version"
             trailing={

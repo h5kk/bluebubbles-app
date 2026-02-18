@@ -38,3 +38,8 @@ tools/api_*.json
 *.exe
 *.dll
 *.pdb
+
+# Database files - never commit
+*.db
+*.sqlite
+*.sqlite3

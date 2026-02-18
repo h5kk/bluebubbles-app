@@ -19,3 +19,14 @@ target/
 
 # Local temp files
 nul
+*.err
+
+# Personal data - never commit
+*.db
+*.sqlite
+*.sqlite3
+*tmp_messages*
+*messages.json
+
+# Claude session artifacts
+.claude/

@@ -29,6 +29,7 @@ import type { Message } from "@/hooks/useTauri";
 import { tauriSendReaction, tauriSendTypingIndicator, tauriCreateScheduledMessage } from "@/hooks/useTauri";
 import { parseBBDateMs } from "@/utils/dateUtils";
 import { getDemoName, getDemoMessageSnippet, getDemoAvatarUrl } from "@/utils/demoData";
+import { playReactionSound } from "@/utils/notificationSound";
 import { useAttachmentStore } from "@/store/attachmentStore";
 import { useContactStore } from "@/store/contactStore";
 import { useFindMyStore } from "@/store/findMyStore";
@@ -347,7 +348,11 @@ export function ConversationView() {
     const { addOptimisticReaction } = useMessageStore.getState();
     addOptimisticReaction(contextMenu.message.guid, finalReaction);
 
-    tauriSendReaction(decodedGuid, messageText, contextMenu.message.guid, finalReaction).catch(() => {});
+    tauriSendReaction(decodedGuid, messageText, contextMenu.message.guid, finalReaction).then(() => {
+      if (useSettingsStore.getState().settings["soundEnabled"] !== "false") {
+        playReactionSound(true);
+      }
+    }).catch(() => {});
   }, [contextMenu.message, decodedGuid]);
 
   const handleReaction = useCallback(
@@ -371,7 +376,11 @@ export function ConversationView() {
       const { addOptimisticReaction } = useMessageStore.getState();
       addOptimisticReaction(messageGuid, finalReaction);
 
-      tauriSendReaction(decodedGuid, messageText, messageGuid, finalReaction).catch(() => {});
+      tauriSendReaction(decodedGuid, messageText, messageGuid, finalReaction).then(() => {
+        if (useSettingsStore.getState().settings["soundEnabled"] !== "false") {
+          playReactionSound(true);
+        }
+      }).catch(() => {});
     },
     [decodedGuid, messages]
   );

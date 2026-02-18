@@ -3,9 +3,11 @@
  */
 import { create } from "zustand";
 import type { Message } from "@/hooks/useTauri";
-import { tauriGetMessages, tauriSendMessage, tauriSendAttachmentData, tauriSendAttachmentMessage } from "@/hooks/useTauri";
+import { tauriGetMessages, tauriSendMessage, tauriSendAttachmentData, tauriSendAttachmentMessage, tauriSendNotification } from "@/hooks/useTauri";
 import { useChatStore } from "./chatStore";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { playSentSound, playEffectSound, playNotificationSound, playReactionSound } from "@/utils/notificationSound";
+import { useSettingsStore } from "./settingsStore";
 
 interface MessageState {
   messages: Message[];
@@ -177,7 +179,15 @@ export const useMessageStore = create<MessageState>((set, get) => ({
         is_from_me: true,
       });
 
-      // Optimistic update + server response already reflect the new message.
+      // Play send sound (or effect sound if an effect was used)
+      const sendSoundOn = useSettingsStore.getState().settings["sendSoundEnabled"] !== "false";
+      if (sendSoundOn) {
+        if (effect) {
+          playEffectSound(effect);
+        } else {
+          playSentSound();
+        }
+      }
     } catch (err) {
       // Mark the optimistic message as failed instead of removing it
       set((state) => ({
@@ -259,6 +269,11 @@ export const useMessageStore = create<MessageState>((set, get) => ({
         date_created: msg.date_created,
         is_from_me: true,
       });
+
+      // Play send sound
+      if (useSettingsStore.getState().settings["sendSoundEnabled"] !== "false") {
+        playSentSound();
+      }
     } catch (err) {
       set((state) => ({
         messages: state.messages.map((m) =>
@@ -282,6 +297,10 @@ export const useMessageStore = create<MessageState>((set, get) => ({
         messages: [msg, ...state.messages],
         sending: false,
       }));
+
+      if (useSettingsStore.getState().settings["soundEnabled"] !== "false") {
+        playSentSound();
+      }
     } catch (err) {
       set({
         error: err instanceof Error ? err.message : String(err),
@@ -308,6 +327,34 @@ export const useMessageStore = create<MessageState>((set, get) => ({
       date_created: message.date_created,
       is_from_me: message.is_from_me,
     });
+
+    // Play notification sound + send desktop notification for incoming messages
+    if (!message.is_from_me) {
+      const s = useSettingsStore.getState().settings;
+      const notifEnabled = s["notificationsEnabled"] !== "false";
+      const soundOn = s["soundEnabled"] !== "false";
+      const notifSound = s["notifSound"] || "default";
+
+      // Check if it's a reaction (associated_message_type set)
+      const isReaction = message.associated_message_type != null && message.associated_message_type !== "";
+
+      if (isReaction) {
+        if (soundOn && s["notifyReactions"] !== "false") {
+          playReactionSound(false);
+        }
+      } else {
+        if (soundOn && notifSound !== "none") {
+          playNotificationSound(notifSound);
+        }
+        if (notifEnabled) {
+          const showSender = s["notifShowSender"] !== "false";
+          const showPreview = s["notifShowPreview"] !== "false";
+          const title = showSender ? "New Message" : "BlueBubbles";
+          const body = showPreview && message.text ? message.text : "New message received.";
+          tauriSendNotification(title, body).catch(() => {});
+        }
+      }
+    }
   },
 
   addOptimisticReaction: (messageGuid: string, reaction: string) => {

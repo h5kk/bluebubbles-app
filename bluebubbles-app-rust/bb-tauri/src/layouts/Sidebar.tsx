@@ -275,6 +275,8 @@ export function Sidebar({ width = 315, children }: SidebarProps) {
             )}
           </SidebarIconButton>
 
+          <MuteButton />
+
           {debugMode && (
             <div style={{ position: "relative" }}>
               <SidebarIconButton
@@ -756,6 +758,48 @@ interface SidebarIconButtonProps {
   children: React.ReactNode;
   label: string;
   onClick: () => void;
+}
+
+function MuteButton() {
+  const { settings, updateSetting } = useSettingsStore();
+  const isMuted = settings["soundEnabled"] === "false";
+  const [hovered, setHovered] = useState(false);
+
+  return (
+    <button
+      onClick={() => updateSetting("soundEnabled", isMuted ? "true" : "false")}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      aria-label={isMuted ? "Unmute notifications" : "Mute notifications"}
+      style={{
+        width: 30,
+        height: 30,
+        borderRadius: 6,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: isMuted ? "var(--color-error)" : "var(--color-on-surface-variant)",
+        backgroundColor: hovered ? "var(--color-surface-variant)" : "transparent",
+        transition: "background-color 100ms ease, color 100ms ease",
+        cursor: "pointer",
+      }}
+    >
+      {isMuted ? (
+        /* Speaker with X - muted */
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <path d="M2 6H4.5L8 3V13L4.5 10H2C1.45 10 1 9.55 1 9V7C1 6.45 1.45 6 2 6Z" fill="currentColor" />
+          <path d="M11 5.5L15 10.5M15 5.5L11 10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        </svg>
+      ) : (
+        /* Speaker with sound waves */
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <path d="M2 6H4.5L8 3V13L4.5 10H2C1.45 10 1 9.55 1 9V7C1 6.45 1.45 6 2 6Z" fill="currentColor" />
+          <path d="M11 5.5C11.8 6.3 12.3 7.5 12.3 8C12.3 8.5 11.8 9.7 11 10.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+          <path d="M13 3.5C14.3 4.8 15 6.8 15 8C15 9.2 14.3 11.2 13 12.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+        </svg>
+      )}
+    </button>
+  );
 }
 
 function SidebarIconButton({ children, label, onClick }: SidebarIconButtonProps) {

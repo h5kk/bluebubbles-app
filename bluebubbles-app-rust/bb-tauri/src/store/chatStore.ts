@@ -3,7 +3,9 @@
  */
 import { create } from "zustand";
 import type { ChatWithPreview } from "@/hooks/useTauri";
-import { tauriGetChats, tauriRefreshChats, tauriMarkChatRead, tauriMarkChatUnread, tauriUpdateChat } from "@/hooks/useTauri";
+import { tauriGetChats, tauriRefreshChats, tauriMarkChatRead, tauriMarkChatUnread, tauriUpdateChat, tauriSendNotification } from "@/hooks/useTauri";
+import { playNotificationSound } from "@/utils/notificationSound";
+import { useSettingsStore } from "./settingsStore";
 
 interface ChatState {
   chats: ChatWithPreview[];
@@ -82,6 +84,56 @@ export const useChatStore = create<ChatState>((set, get) => ({
     try {
       const freshChats = await tauriRefreshChats(PAGE_SIZE);
       const { chats: currentChats, selectedChatGuid } = get();
+
+      // Detect new incoming messages by comparing latest_message_date
+      const oldChatMap = new Map(currentChats.map((c) => [c.chat.guid, c]));
+      let newIncomingCount = 0;
+      let lastIncomingText: string | null = null;
+
+      for (const fresh of freshChats) {
+        const old = oldChatMap.get(fresh.chat.guid);
+        if (!old) continue;
+
+        // Skip if this is the currently selected chat (user is already looking at it)
+        if (fresh.chat.guid === selectedChatGuid) continue;
+
+        // Skip muted chats
+        if (fresh.chat.mute_type != null) continue;
+
+        // Check if there's a newer message that's NOT from me
+        if (
+          fresh.latest_message_date &&
+          fresh.latest_message_is_from_me === false &&
+          (!old.latest_message_date || fresh.latest_message_date > old.latest_message_date)
+        ) {
+          newIncomingCount++;
+          lastIncomingText = fresh.latest_message_text;
+        }
+      }
+
+      // Fire notification sound + desktop notification for new incoming messages
+      if (newIncomingCount > 0) {
+        const s = useSettingsStore.getState().settings;
+        const soundOn = s["soundEnabled"] !== "false";
+        const notifSound = s["notifSound"] || "default";
+        const notifEnabled = s["notificationsEnabled"] !== "false";
+
+        if (soundOn && notifSound !== "none") {
+          playNotificationSound(notifSound);
+        }
+
+        if (notifEnabled) {
+          const showPreview = s["notifShowPreview"] !== "false";
+          const title = newIncomingCount === 1 ? "New Message" : `${newIncomingCount} New Messages`;
+          const body =
+            showPreview && lastIncomingText
+              ? lastIncomingText
+              : newIncomingCount === 1
+                ? "New message received."
+                : `${newIncomingCount} new messages received.`;
+          tauriSendNotification(title, body).catch(() => {});
+        }
+      }
 
       // Merge: use fresh data but preserve any chats that exist locally
       // beyond the refresh limit (older chats from pagination)
