@@ -1,9 +1,10 @@
 /**
  * ReactionPicker - popup emoji picker for adding reactions to messages.
- * Shows quick reactions (❤️ 👍 😂 😮 😢 😡) with hover effects.
+ * Uses emoji-picker-react in reactions mode to match supported tapbacks.
  */
-import { useEffect, useRef, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, type CSSProperties } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import EmojiPicker, { EmojiStyle, Theme, type EmojiClickData } from "emoji-picker-react";
 
 interface ReactionPickerProps {
   isOpen: boolean;
@@ -13,14 +14,19 @@ interface ReactionPickerProps {
   position?: "above" | "below";
 }
 
-const QUICK_REACTIONS = [
-  { emoji: "❤️", name: "love", label: "Love" },
-  { emoji: "👍", name: "like", label: "Like" },
-  { emoji: "😂", name: "laugh", label: "Laugh" },
-  { emoji: "😮", name: "emphasize", label: "Emphasize" },
-  { emoji: "😢", name: "dislike", label: "Dislike" },
-  { emoji: "❓", name: "question", label: "Question" },
+const TAPBACK_REACTIONS = [
+  { emoji: "\u2764\uFE0F", name: "love", label: "Love", unified: "2764-fe0f" },
+  { emoji: "\uD83D\uDC4D", name: "like", label: "Like", unified: "1f44d" },
+  { emoji: "\uD83D\uDC4E", name: "dislike", label: "Dislike", unified: "1f44e" },
+  { emoji: "\uD83D\uDE02", name: "laugh", label: "Laugh", unified: "1f602" },
+  { emoji: "\u203C\uFE0F", name: "emphasize", label: "Emphasize", unified: "203c-fe0f" },
+  { emoji: "\u2753", name: "question", label: "Question", unified: "2753" },
 ];
+
+function isDarkTheme(): boolean {
+  const theme = document.documentElement.getAttribute("data-theme") ?? "";
+  return theme.includes("dark") || theme.includes("oled") || theme.includes("nord");
+}
 
 export function ReactionPicker({
   isOpen,
@@ -30,6 +36,19 @@ export function ReactionPicker({
   position = "above",
 }: ReactionPickerProps) {
   const pickerRef = useRef<HTMLDivElement>(null);
+  const theme = useMemo(() => (isDarkTheme() ? Theme.DARK : Theme.LIGHT), []);
+
+  const reactionByUnified = useMemo(() => {
+    const map = new Map<string, string>();
+    TAPBACK_REACTIONS.forEach((r) => map.set(r.unified, r.name));
+    return map;
+  }, []);
+
+  const reactionByEmoji = useMemo(() => {
+    const map = new Map<string, string>();
+    TAPBACK_REACTIONS.forEach((r) => map.set(r.emoji, r.name));
+    return map;
+  }, []);
 
   // Close on outside click
   useEffect(() => {
@@ -82,27 +101,22 @@ export function ReactionPicker({
   };
 
   const pickerStyle: CSSProperties = {
-    display: "flex",
-    gap: 8,
-    padding: "8px 12px",
+    padding: "6px 8px",
     backgroundColor: "var(--color-surface)",
     borderRadius: 24,
     boxShadow: "0 4px 20px rgba(0,0,0,0.2)",
     border: "1px solid var(--color-surface-variant)",
   };
 
-  const reactionButtonStyle: CSSProperties = {
-    width: 40,
-    height: 40,
-    borderRadius: "50%",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: 24,
-    cursor: "pointer",
-    transition: "all 150ms cubic-bezier(0.4, 0, 0.2, 1)",
-    backgroundColor: "transparent",
-    border: "none",
+  const handleReactionClick = (emojiData: EmojiClickData) => {
+    const unified = emojiData.unified?.toLowerCase();
+    const emoji = emojiData.emoji;
+    const name =
+      (unified && reactionByUnified.get(unified)) ||
+      (emoji && reactionByEmoji.get(emoji));
+    if (!name) return;
+    onSelectReaction(name);
+    onClose();
   };
 
   return (
@@ -119,25 +133,31 @@ export function ReactionPicker({
           }}
           style={pickerStyle}
         >
-          {QUICK_REACTIONS.map((reaction) => (
-            <motion.button
-              key={reaction.name}
-              onClick={() => {
-                onSelectReaction(reaction.name);
-                onClose();
-              }}
-              style={reactionButtonStyle}
-              whileHover={{
-                scale: 1.3,
-                backgroundColor: "var(--color-surface-variant)",
-              }}
-              whileTap={{ scale: 0.95 }}
-              aria-label={`React with ${reaction.label}`}
-              title={reaction.label}
-            >
-              {reaction.emoji}
-            </motion.button>
-          ))}
+          <EmojiPicker
+            theme={theme}
+            emojiStyle={EmojiStyle.APPLE}
+            reactionsDefaultOpen
+            allowExpandReactions={false}
+            reactions={TAPBACK_REACTIONS.map((r) => r.unified)}
+            onReactionClick={handleReactionClick}
+            previewConfig={{ showPreview: false }}
+            searchDisabled
+            skinTonesDisabled
+            height={56}
+            width={320}
+            lazyLoadEmojis
+            style={{
+              "--epr-bg-color": "var(--color-surface)",
+              "--epr-hover-bg-color": "var(--color-surface-variant)",
+              "--epr-border-radius": "20px",
+              "--epr-category-label-bg-color": "transparent",
+              "--epr-highlight-color": "var(--color-primary)",
+              "--epr-search-border-color": "var(--color-surface-variant)",
+              "--epr-picker-border-color": "transparent",
+              "--epr-text-color": "var(--color-on-surface)",
+              "--epr-emoji-size": "22px",
+            } as CSSProperties}
+          />
         </motion.div>
       </AnimatePresence>
     </div>

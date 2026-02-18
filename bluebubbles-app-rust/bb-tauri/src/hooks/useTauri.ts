@@ -254,6 +254,42 @@ export async function tauriDownloadAttachment(guid: string): Promise<string> {
   return invoke<string>("download_attachment", { guid });
 }
 
+/** Send an attachment from raw bytes (base64). Used for pasted/dropped files. */
+export async function tauriSendAttachmentData(
+  chatGuid: string,
+  fileName: string,
+  base64Data: string
+): Promise<Message> {
+  return invoke<Message>("send_attachment_data", { chatGuid, fileName, base64Data });
+}
+
+/** Send an attachment from a file path on disk. Used for file picker. */
+export async function tauriSendAttachmentMessage(
+  chatGuid: string,
+  filePath: string,
+  options?: { effectId?: string; subject?: string }
+): Promise<Message> {
+  return invoke<Message>("send_attachment_message", {
+    chatGuid,
+    filePath,
+    options: {
+      effect_id: options?.effectId ?? null,
+      subject: options?.subject ?? null,
+    },
+  });
+}
+
+/** Pick a file using the native file dialog. */
+export interface PickedFile {
+  path: string;
+  name: string;
+  size: number;
+}
+
+export async function tauriPickAttachmentFile(): Promise<PickedFile | null> {
+  return invoke<PickedFile | null>("pick_attachment_file");
+}
+
 export async function tauriGetSettings(): Promise<Record<string, string>> {
   return invoke<Record<string, string>>("get_settings");
 }
@@ -372,4 +408,60 @@ export async function onSyncProgress(callback: (progress: SyncProgress) => void)
 /** Listen for sync complete event. Returns an unlisten function. */
 export async function onSyncComplete(callback: (totalMessages: number) => void): Promise<UnlistenFn> {
   return listen<number>("sync-complete", (event) => callback(event.payload));
+}
+
+// ─── Scheduled message command wrappers ─────────────────────────────────────
+
+/** Create a scheduled message. */
+export async function tauriCreateScheduledMessage(
+  chatGuid: string,
+  message: string,
+  scheduledFor: number
+): Promise<unknown> {
+  return invoke<unknown>("create_scheduled_message", {
+    chatGuid,
+    message,
+    scheduledFor,
+  });
+}
+
+/** Get all scheduled messages. */
+export async function tauriGetScheduledMessages(): Promise<unknown[]> {
+  return invoke<unknown[]>("get_scheduled_messages");
+}
+
+/** Delete a scheduled message by ID. */
+export async function tauriDeleteScheduledMessage(id: number): Promise<void> {
+  return invoke<void>("delete_scheduled_message", { id });
+}
+
+// ─── MCP Server command wrappers ─────────────────────────────────────────────
+
+/** MCP server status info returned from the backend. */
+export interface McpStatusInfo {
+  running: boolean;
+  port: number;
+  token: string;
+  connected_clients: number;
+  url: string;
+}
+
+/** Start the MCP server on the given port. */
+export async function tauriStartMcpServer(port: number, token?: string): Promise<McpStatusInfo> {
+  return invoke<McpStatusInfo>("start_mcp_server", { port, token: token ?? null });
+}
+
+/** Stop the MCP server. */
+export async function tauriStopMcpServer(): Promise<void> {
+  return invoke<void>("stop_mcp_server");
+}
+
+/** Get the current MCP server status. */
+export async function tauriGetMcpStatus(): Promise<McpStatusInfo> {
+  return invoke<McpStatusInfo>("get_mcp_status");
+}
+
+/** Regenerate the MCP bearer token. Returns the new token. */
+export async function tauriRegenerateMcpToken(): Promise<string> {
+  return invoke<string>("regenerate_mcp_token");
 }

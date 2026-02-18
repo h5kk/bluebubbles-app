@@ -15,6 +15,7 @@ use bb_models::queries;
 
 use crate::state::AppState;
 use crate::otp_detector::{detect_otp, OtpDetection};
+use crate::mcp_state::McpState;
 
 // ─── Serializable response types for the frontend ───────────────────────────
 
@@ -56,15 +57,20 @@ pub struct SyncResult {
 
 fn parse_server_info(data: Option<&serde_json::Value>, api_root: Option<String>, auth_key: Option<String>) -> ServerInfo {
     ServerInfo {
-        os_version: data.and_then(|d| d.get("osVersion")).and_then(|v| v.as_str()).map(String::from),
-        server_version: data.and_then(|d| d.get("serverVersion")).and_then(|v| v.as_str()).map(String::from),
+        os_version: data.and_then(|d| d.get("os_version").or_else(|| d.get("osVersion"))).and_then(|v| v.as_str()).map(String::from),
+        server_version: data.and_then(|d| d.get("server_version").or_else(|| d.get("serverVersion"))).and_then(|v| v.as_str()).map(String::from),
         private_api: data
             .and_then(|d| d.get("private_api").or_else(|| d.get("privateAPI")))
             .and_then(|v| v.as_bool())
             .unwrap_or(false),
-        proxy_service: data.and_then(|d| d.get("proxyService")).and_then(|v| v.as_str()).map(String::from),
-        helper_connected: data.and_then(|d| d.get("helperConnected")).and_then(|v| v.as_bool()).unwrap_or(false),
-        detected_imessage: data.and_then(|d| d.get("detectediMessage")).and_then(|v| v.as_str()).map(String::from),
+        proxy_service: data.and_then(|d| d.get("proxy_service").or_else(|| d.get("proxyService"))).and_then(|v| v.as_str()).map(String::from),
+        helper_connected: data
+            .and_then(|d| d.get("helper_connected").or_else(|| d.get("helperConnected")))
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false),
+        detected_imessage: data
+            .and_then(|d| d.get("detected_imessage").or_else(|| d.get("detectediMessage")))
+            .and_then(|v| v.as_str()).map(String::from),
         api_root,
         auth_key,
     }
@@ -382,6 +388,9 @@ pub async fn get_chats(
     let conn = state.database.conn().map_err(|e| e.to_string())?;
     let offset = (page * limit) as i64;
 
+    // Link contacts to handles so display names resolve correctly
+    let _ = queries::link_contacts_to_handles(&conn);
+
     let chats = queries::list_chats_with_details(
         &conn,
         offset,
@@ -482,6 +491,9 @@ pub async fn refresh_chats(
     }
 
     debug!("refresh_chats: saved {total_saved} chats from server (fetched up to offset {server_offset})");
+
+    // Link contacts to handles so display names resolve correctly
+    let _ = queries::link_contacts_to_handles(&conn);
 
     // Now read back from local DB to get consistent ChatWithPreview format
     let chats = queries::list_chats_with_details(&conn, 0, limit as i64, false)
@@ -636,7 +648,7 @@ pub async fn get_messages(
     if let Some(chat) = Chat::find_by_guid(&conn, &chat_guid).map_err(|e| e.to_string())? {
         if let Some(chat_id) = chat.id {
             chat_id_for_save = Some(chat_id as i64);
-            let local_msgs = queries::list_messages_for_chat(
+            let mut local_msgs = queries::list_messages_for_chat(
                 &conn, chat_id, off, limit as i64, queries::SortDirection::Desc,
             ).map_err(|e| e.to_string())?;
 
@@ -646,7 +658,36 @@ pub async fn get_messages(
             // In that case, fall through to fetch from server and backfill.
             let too_few = local_msgs.len() < 5 && off == 0;
             if !local_msgs.is_empty() && !too_few {
-                return Ok(local_msgs);
+                // Hydrate attachments for ALL messages from local DB.
+                // We check every message (not just has_attachments=true) because
+                // the BB server omits hasAttachments, so older saved messages may
+                // have has_attachments=false despite having attachment rows in DB.
+                let mut any_expected_but_missing = false;
+                for msg in &mut local_msgs {
+                    if let Some(msg_id) = msg.id {
+                        if let Ok(atts) = queries::load_attachments_for_message(&conn, msg_id) {
+                            if !atts.is_empty() {
+                                msg.attachments = atts;
+                                msg.has_attachments = true;
+                            } else if msg.has_attachments {
+                                // Message claims attachments but none in DB
+                                any_expected_but_missing = true;
+                            }
+                        }
+                    }
+                }
+                // Debug: log attachment hydration results
+                let att_count: usize = local_msgs.iter().map(|m| m.attachments.len()).sum();
+                let has_att_count = local_msgs.iter().filter(|m| m.has_attachments).count();
+                debug!("local DB: {} msgs, {} with has_attachments=true, {} total attachments hydrated",
+                    local_msgs.len(), has_att_count, att_count);
+
+                // If any messages claim to have attachments but none were found in DB,
+                // fall through to server to backfill attachment data
+                if !any_expected_but_missing {
+                    return Ok(local_msgs);
+                }
+                debug!("chat {} has messages with missing attachments, fetching from server to backfill", chat_guid);
             }
 
             if too_few && !local_msgs.is_empty() {
@@ -671,11 +712,33 @@ pub async fn get_messages(
     let mut messages = Vec::new();
     if let Some(data) = response.data.as_ref().and_then(|d| d.as_array()) {
         for msg_json in data {
+            // Debug: log raw attachment data from server
+            if let Some(atts) = msg_json.get("attachments").and_then(|v| v.as_array()) {
+                if !atts.is_empty() {
+                    let guid = msg_json.get("guid").and_then(|v| v.as_str()).unwrap_or("?");
+                    debug!("server msg {} has {} raw attachments", guid, atts.len());
+                    for (i, att) in atts.iter().enumerate() {
+                        let att_guid = att.get("guid").and_then(|v| v.as_str()).unwrap_or("?");
+                        let mime = att.get("mimeType").and_then(|v| v.as_str()).unwrap_or("none");
+                        debug!("  att[{}]: guid={} mime={}", i, att_guid, mime);
+                    }
+                }
+            }
             if let Ok(mut msg) = Message::from_server_map(msg_json) {
+                if !msg.attachments.is_empty() {
+                    debug!("parsed msg {} has_attachments={} att_count={}",
+                        msg.guid.as_deref().unwrap_or("?"), msg.has_attachments, msg.attachments.len());
+                }
                 // Save fetched messages to local DB for future use
                 if let Some(cid) = chat_id_for_save {
                     msg.chat_id = Some(cid);
-                    let _ = msg.save(&conn);
+                    if let Ok(msg_id) = msg.save(&conn) {
+                        // Also save attachments to local DB with correct message_id
+                        for att in &mut msg.attachments {
+                            att.message_id = Some(msg_id);
+                            let _ = att.save(&conn);
+                        }
+                    }
                 }
                 messages.push(msg);
             }
@@ -1079,6 +1142,66 @@ pub async fn send_attachment_message(
     Ok(msg)
 }
 
+/// Send an attachment from raw bytes (base64-encoded from the browser).
+/// Used for pasted images and drag-and-drop files that don't have a disk path.
+#[tauri::command]
+pub async fn send_attachment_data(
+    state: State<'_, AppState>,
+    chat_guid: String,
+    file_name: String,
+    base64_data: String,
+) -> Result<Message, String> {
+    info!("send_attachment_data chat={chat_guid} file={file_name}");
+
+    use base64::Engine;
+    let file_bytes = base64::engine::general_purpose::STANDARD
+        .decode(&base64_data)
+        .map_err(|e| format!("invalid base64 data: {e}"))?;
+
+    if file_bytes.is_empty() {
+        return Err("file data is empty".to_string());
+    }
+    if file_bytes.len() > 100 * 1_048_576 {
+        return Err("file exceeds 100MB limit".to_string());
+    }
+
+    let mime_type = infer_mime_type(&file_name);
+    info!("uploading {} bytes as {}", file_bytes.len(), mime_type);
+
+    let temp_guid = format!("temp-{}", uuid::Uuid::new_v4());
+
+    let params = bb_api::endpoints::attachments::SendAttachmentParams {
+        chat_guid: chat_guid.clone(),
+        temp_guid: temp_guid.clone(),
+        file_name: file_name.clone(),
+        method: "private-api".to_string(),
+        effect_id: None,
+        subject: None,
+        selected_message_guid: None,
+        part_index: None,
+        is_audio_message: None,
+    };
+
+    let api = state.api_client().await.map_err(|e| e.to_string())?;
+    let response = api
+        .send_attachment_full(&params, file_bytes, &mime_type)
+        .await
+        .map_err(|e| format!("attachment upload failed: {e}"))?;
+
+    let mut msg = Message::from_server_map(&response).map_err(|e| e.to_string())?;
+
+    let conn = state.database.conn().map_err(|e| e.to_string())?;
+    if let Some(chat) = Chat::find_by_guid(&conn, &chat_guid).map_err(|e| e.to_string())? {
+        msg.chat_id = chat.id;
+    }
+    if let Err(e) = msg.save(&conn) {
+        debug!("failed to save attachment message to DB (non-fatal): {e}");
+    }
+
+    info!("attachment data sent successfully");
+    Ok(msg)
+}
+
 #[tauri::command]
 pub async fn download_attachment(
     state: State<'_, AppState>,
@@ -1144,15 +1267,15 @@ pub async fn check_private_api_status(
             .and_then(|v| v.as_bool())
             .unwrap_or(false),
         helper_connected: data
-            .and_then(|d| d.get("helperConnected"))
+            .and_then(|d| d.get("helper_connected").or_else(|| d.get("helperConnected")))
             .and_then(|v| v.as_bool())
             .unwrap_or(false),
         server_version: data
-            .and_then(|d| d.get("serverVersion"))
+            .and_then(|d| d.get("server_version").or_else(|| d.get("serverVersion")))
             .and_then(|v| v.as_str())
             .map(String::from),
         os_version: data
-            .and_then(|d| d.get("osVersion"))
+            .and_then(|d| d.get("os_version").or_else(|| d.get("osVersion")))
             .and_then(|v| v.as_str())
             .map(String::from),
     })
@@ -1457,7 +1580,12 @@ pub async fn sync_messages(
                     for msg_json in data {
                         if let Ok(mut msg) = Message::from_server_map(msg_json) {
                             msg.chat_id = chat_id;
-                            if msg.save(&conn).is_ok() {
+                            if let Ok(msg_id) = msg.save(&conn) {
+                                // Save attachments to local DB with correct message_id
+                                for att in &mut msg.attachments {
+                                    att.message_id = Some(msg_id);
+                                    let _ = att.save(&conn);
+                                }
                                 total_messages += 1;
                             }
                         }
@@ -2021,6 +2149,58 @@ pub async fn detect_otp_in_text(text: String) -> Result<Option<OtpDetection>, St
     Ok(detect_otp(&text))
 }
 
+// ─── Scheduled message commands ──────────────────────────────────────────────
+
+/// Create a scheduled message via the BB server API.
+#[tauri::command]
+pub async fn create_scheduled_message(
+    state: State<'_, AppState>,
+    chat_guid: String,
+    message: String,
+    scheduled_for: i64,
+) -> Result<serde_json::Value, String> {
+    info!("create_scheduled_message chat={chat_guid} for={scheduled_for}");
+    let api = state.api_client().await.map_err(|e| e.to_string())?;
+
+    let params = bb_api::endpoints::messages::ScheduleMessageParams {
+        schedule_type: "send-message".to_string(),
+        payload: serde_json::json!({
+            "chatGuid": chat_guid,
+            "message": message,
+            "method": "private-api",
+        }),
+        scheduled_for,
+        schedule: None,
+    };
+
+    api.create_scheduled_message(&params)
+        .await
+        .map_err(|e| format!("schedule failed: {e}"))
+}
+
+/// Get all scheduled messages from the BB server.
+#[tauri::command]
+pub async fn get_scheduled_messages(
+    state: State<'_, AppState>,
+) -> Result<Vec<serde_json::Value>, String> {
+    let api = state.api_client().await.map_err(|e| e.to_string())?;
+    api.get_scheduled_messages()
+        .await
+        .map_err(|e| format!("get scheduled messages failed: {e}"))
+}
+
+/// Delete a scheduled message by ID.
+#[tauri::command]
+pub async fn delete_scheduled_message(
+    state: State<'_, AppState>,
+    id: i64,
+) -> Result<(), String> {
+    let api = state.api_client().await.map_err(|e| e.to_string())?;
+    api.delete_scheduled_message(id)
+        .await
+        .map_err(|e| format!("delete scheduled message failed: {e}"))
+}
+
 // ─── Helper function for message processing ─────────────────────────────────
 
 /// Process a newly received message for OTP detection.
@@ -2080,4 +2260,176 @@ pub async fn process_message_for_otp(
     }
 
     Ok(detection)
+}
+
+// ─── MCP Server commands ─────────────────────────────────────────────────────
+
+/// Status info returned to the frontend for the MCP server.
+#[derive(serde::Serialize, Clone, Debug)]
+pub struct McpStatusInfo {
+    pub running: bool,
+    pub port: u16,
+    pub token: String,
+    pub connected_clients: u32,
+    pub url: String,
+}
+
+/// Start the MCP server on the given port.
+#[tauri::command]
+pub async fn start_mcp_server(
+    port: u16,
+    token: Option<String>,
+    app_state: State<'_, AppState>,
+    mcp_state: State<'_, McpState>,
+) -> Result<McpStatusInfo, String> {
+    use std::sync::Arc;
+    use std::sync::atomic::AtomicU32;
+    use crate::mcp_auth::McpAuth;
+    use crate::mcp_state::McpServer;
+
+    info!("starting mcp server on port {port}");
+
+    let mut guard = mcp_state.server.write().await;
+
+    // Stop existing server if running
+    if let Some(ref existing) = *guard {
+        existing.shutdown();
+    }
+
+    let auth = match token {
+        Some(t) if !t.is_empty() => McpAuth::with_token(t),
+        _ => McpAuth::new(),
+    };
+
+    let current_token = auth.current_token().await;
+    let auth = Arc::new(auth);
+    let active_connections = Arc::new(AtomicU32::new(0));
+    let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
+
+    // Extract what the MCP server needs from AppState and create a proxy
+    let registry = app_state.registry.clone();
+    let config = app_state.config.clone();
+    let database = app_state.database.clone();
+    let socket_manager = app_state.socket_manager.clone();
+    let setup_complete = app_state.setup_complete.clone();
+
+    let proxy_state = Arc::new(AppState {
+        registry,
+        config,
+        database,
+        socket_manager,
+        setup_complete,
+    });
+
+    let auth_clone = auth.clone();
+    let connections_clone = active_connections.clone();
+
+    let server_handle = tokio::spawn(async move {
+        if let Err(e) = crate::mcp_server::start(
+            auth_clone,
+            proxy_state,
+            port,
+            connections_clone,
+            shutdown_rx,
+        )
+        .await
+        {
+            warn!("mcp server error: {e}");
+        }
+    });
+
+    let mcp_server = McpServer {
+        auth: crate::mcp_auth::McpAuth::with_token(current_token.clone()),
+        port,
+        shutdown_tx,
+        active_connections,
+        server_handle: Some(server_handle),
+    };
+
+    *guard = Some(mcp_server);
+
+    // Persist settings
+    if let Ok(conn) = app_state.database.conn() {
+        let _ = Settings::set(&conn, "mcp_server_enabled", "true");
+        let _ = Settings::set(&conn, "mcp_server_port", &port.to_string());
+        let _ = Settings::set(&conn, "mcp_server_token", &current_token);
+    }
+
+    Ok(McpStatusInfo {
+        running: true,
+        port,
+        token: current_token,
+        connected_clients: 0,
+        url: format!("http://127.0.0.1:{port}/mcp/sse"),
+    })
+}
+
+/// Stop the MCP server.
+#[tauri::command]
+pub async fn stop_mcp_server(
+    app_state: State<'_, AppState>,
+    mcp_state: State<'_, McpState>,
+) -> Result<(), String> {
+    info!("stopping mcp server");
+
+    let mut guard = mcp_state.server.write().await;
+    if let Some(ref server) = *guard {
+        server.shutdown();
+    }
+    *guard = None;
+
+    // Persist disabled state
+    if let Ok(conn) = app_state.database.conn() {
+        let _ = Settings::set(&conn, "mcp_server_enabled", "false");
+    }
+
+    Ok(())
+}
+
+/// Get the current MCP server status.
+#[tauri::command]
+pub async fn get_mcp_status(
+    mcp_state: State<'_, McpState>,
+) -> Result<McpStatusInfo, String> {
+    let guard = mcp_state.server.read().await;
+    match guard.as_ref() {
+        Some(server) => {
+            let token = server.auth.current_token().await;
+            Ok(McpStatusInfo {
+                running: true,
+                port: server.port,
+                token,
+                connected_clients: server.connected_clients(),
+                url: format!("http://127.0.0.1:{}/mcp/sse", server.port),
+            })
+        }
+        None => Ok(McpStatusInfo {
+            running: false,
+            port: 0,
+            token: String::new(),
+            connected_clients: 0,
+            url: String::new(),
+        }),
+    }
+}
+
+/// Regenerate the MCP bearer token. Disconnects all active sessions.
+#[tauri::command]
+pub async fn regenerate_mcp_token(
+    app_state: State<'_, AppState>,
+    mcp_state: State<'_, McpState>,
+) -> Result<String, String> {
+    let guard = mcp_state.server.read().await;
+    let new_token = match guard.as_ref() {
+        Some(server) => server.auth.regenerate().await,
+        None => return Err("MCP server is not running".to_string()),
+    };
+
+    // Persist the new token
+    if let Ok(conn) = app_state.database.conn() {
+        let _ = Settings::set(&conn, "mcp_server_token", &new_token);
+    }
+
+    info!("mcp token regenerated");
+    Ok(new_token)
 }

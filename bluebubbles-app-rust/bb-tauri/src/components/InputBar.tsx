@@ -5,6 +5,7 @@
 import React, { useState, useCallback, useRef, type KeyboardEvent, type ClipboardEvent, type CSSProperties } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { EmojiPicker } from "./EmojiPicker";
+import { SendOptionsPopover } from "./SendOptionsPopover";
 import { useAttachmentStore } from "@/store/attachmentStore";
 import { ImagePreviewCard } from "./ImagePreviewCard";
 
@@ -12,6 +13,9 @@ interface InputBarProps {
   onSend: (text: string) => void;
   onSendAttachment?: (file: File) => void;
   onTyping?: (isTyping: boolean) => void;
+  onSendWithEffect?: (text: string, effectId: string) => void;
+  onScheduleSend?: (text: string, scheduledFor: number) => void;
+  privateApiEnabled?: boolean;
   sending?: boolean;
   sendWithReturn?: boolean;
   placeholder?: string;
@@ -22,6 +26,9 @@ export function InputBar({
   onSend,
   onSendAttachment,
   onTyping,
+  onSendWithEffect,
+  onScheduleSend,
+  privateApiEnabled = false,
   sending = false,
   sendWithReturn = false,
   placeholder = "iMessage",
@@ -30,9 +37,11 @@ export function InputBar({
   const [text, setText] = useState("");
   const [pastedImage, setPastedImage] = useState<{ file: File; preview: string } | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showSendOptions, setShowSendOptions] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
+  const sendButtonRef = useRef<HTMLButtonElement>(null);
 
   const { pendingAttachments, addPendingAttachment, removePendingAttachment } =
     useAttachmentStore();
@@ -43,19 +52,32 @@ export function InputBar({
   );
 
   const handleSend = useCallback(() => {
+    // Send pasted image
     if (pastedImage && onSendAttachment) {
       onSendAttachment(pastedImage.file);
       setPastedImage(null);
-      return;
     }
+    // Send pending attachments (from drag-drop / file picker)
+    if (currentChatAttachments.length > 0 && onSendAttachment) {
+      for (const attachment of currentChatAttachments) {
+        onSendAttachment(attachment.file);
+        removePendingAttachment(attachment.id);
+      }
+    }
+    // Send text if any
     const trimmed = text.trim();
-    if (!trimmed || sending) return;
-    onSend(trimmed);
-    setText("");
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
+    if (trimmed && !sending) {
+      onSend(trimmed);
+      setText("");
+      if (textareaRef.current) {
+        textareaRef.current.style.height = "auto";
+      }
     }
-  }, [text, sending, onSend, pastedImage, onSendAttachment]);
+    // Keep focus for rapid consecutive messages
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus();
+    });
+  }, [text, sending, onSend, pastedImage, onSendAttachment, currentChatAttachments, removePendingAttachment]);
 
   const handlePaste = useCallback(
     async (e: ClipboardEvent<HTMLTextAreaElement>) => {
@@ -154,8 +176,19 @@ export function InputBar({
     [text]
   );
 
+  const handleSendContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      if ((text.trim().length > 0 || pastedImage !== null || currentChatAttachments.length > 0) && !sending) {
+        setShowSendOptions(true);
+      }
+    },
+    [text, sending, pastedImage, currentChatAttachments.length]
+  );
+
   const hasText = text.trim().length > 0;
-  const canSend = (hasText || pastedImage) && !sending;
+  const hasAttachments = pastedImage !== null || currentChatAttachments.length > 0;
+  const canSend = (hasText || hasAttachments) && !sending;
 
   const containerStyle: CSSProperties = {
     display: "flex",
@@ -249,9 +282,6 @@ export function InputBar({
               <span style={{ fontSize: 12, fontWeight: 500, color: "var(--color-on-surface)" }}>
                 Screenshot
               </span>
-              <span style={{ fontSize: 11, color: "var(--color-on-surface-variant)" }}>
-                Press Enter to send
-              </span>
             </div>
             <button
               onClick={() => setPastedImage(null)}
@@ -337,7 +367,7 @@ export function InputBar({
 
         {/* Right side buttons inside the pill */}
         <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
-          {!hasText && (
+          {!hasText && !hasAttachments && (
             <>
               {/* Audio / waveform icon */}
               <InputBarIconButton label="Audio message">
@@ -364,10 +394,12 @@ export function InputBar({
             </>
           )}
 
-          {/* Send button - appears when there is text */}
-          {hasText && (
+          {/* Send button - appears when there is text or attachments */}
+          {canSend && (
             <button
+              ref={sendButtonRef}
               onClick={handleSend}
+              onContextMenu={handleSendContextMenu}
               disabled={!canSend}
               style={{
                 width: 24,
@@ -416,6 +448,40 @@ export function InputBar({
           />
         )}
       </AnimatePresence>
+
+      {/* Send options popover (right-click send button) */}
+      <SendOptionsPopover
+        open={showSendOptions}
+        anchorRef={sendButtonRef}
+        onClose={() => setShowSendOptions(false)}
+        onSendWithEffect={(effectId) => {
+          const trimmed = text.trim();
+          if (trimmed && onSendWithEffect) {
+            onSendWithEffect(trimmed, effectId);
+            setText("");
+            if (textareaRef.current) {
+              textareaRef.current.style.height = "auto";
+            }
+            requestAnimationFrame(() => {
+              textareaRef.current?.focus();
+            });
+          }
+        }}
+        onScheduleSend={(scheduledFor) => {
+          const trimmed = text.trim();
+          if (trimmed && onScheduleSend) {
+            onScheduleSend(trimmed, scheduledFor);
+            setText("");
+            if (textareaRef.current) {
+              textareaRef.current.style.height = "auto";
+            }
+            requestAnimationFrame(() => {
+              textareaRef.current?.focus();
+            });
+          }
+        }}
+        privateApiEnabled={privateApiEnabled}
+      />
     </div>
   );
 }

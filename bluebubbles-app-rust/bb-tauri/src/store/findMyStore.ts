@@ -69,6 +69,7 @@ interface FindMyState {
   getDevicesWithLocation: () => FindMyDevice[];
   getFriendsWithLocation: () => FindMyFriend[];
   getSelectedItem: () => FindMyDevice | FindMyFriend | null;
+  getFriendByHandle: (handle: string) => FindMyFriend | null;
 }
 
 export const useFindMyStore = create<FindMyState>((set, get) => ({
@@ -205,5 +206,19 @@ export const useFindMyStore = create<FindMyState>((set, get) => ({
     } else {
       return friends.get(selectedId) || null;
     }
+  },
+
+  getFriendByHandle: (handle: string): FindMyFriend | null => {
+    const { friends } = get();
+    const normalizedHandle = handle.toLowerCase().replace(/[^0-9+a-z@.]/g, "");
+
+    for (const friend of friends.values()) {
+      const friendHandle = friend.handle.toLowerCase().replace(/[^0-9+a-z@.]/g, "");
+      if (friendHandle === normalizedHandle) {
+        return friend;
+      }
+    }
+
+    return null;
   },
 }));

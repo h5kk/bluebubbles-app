@@ -9,6 +9,8 @@ interface ReactionBubbleProps {
   emoji: string;
   count: number;
   isOwnReaction: boolean;
+  isSent: boolean;
+  accentColor?: string;
   onClick?: () => void;
 }
 
@@ -16,23 +18,33 @@ export const ReactionBubble = memo(function ReactionBubble({
   emoji,
   count,
   isOwnReaction,
+  isSent,
+  accentColor,
   onClick,
 }: ReactionBubbleProps) {
+  const baseAccent = accentColor ?? (isSent
+    ? "var(--bubble-imessage-sent)"
+    : "var(--color-on-surface)");
+  const backgroundColor = isSent
+    ? `color-mix(in srgb, ${baseAccent} 14%, white)`
+    : "color-mix(in srgb, var(--color-surface) 92%, white)";
+  const borderColor = isSent
+    ? `color-mix(in srgb, ${baseAccent} 60%, transparent)`
+    : "color-mix(in srgb, var(--color-outline) 80%, transparent)";
+
   const bubbleStyle: CSSProperties = {
     display: "inline-flex",
     alignItems: "center",
     gap: 4,
-    padding: "2px 8px",
-    borderRadius: 12,
-    fontSize: 14,
-    fontWeight: 500,
-    backgroundColor: isOwnReaction
-      ? "rgba(0, 122, 255, 0.15)"
-      : "var(--color-surface-variant)",
-    border: isOwnReaction
-      ? "1.5px solid #007AFF"
-      : "1px solid var(--color-outline)",
-    color: isOwnReaction ? "#007AFF" : "var(--color-on-surface)",
+    padding: "2px 9px",
+    borderRadius: 999,
+    fontSize: 13,
+    fontWeight: 600,
+    backgroundColor,
+    border: `${isOwnReaction ? 1.5 : 1}px solid ${borderColor}`,
+    color: baseAccent,
+    boxShadow:
+      "0 1px 3px rgba(0,0,0,0.12), 0 0 0 1px rgba(255,255,255,0.6) inset",
     cursor: onClick ? "pointer" : "default",
     transition: "all 150ms ease",
     userSelect: "none",
@@ -61,10 +73,8 @@ export const ReactionBubble = memo(function ReactionBubble({
       whileHover={
         onClick
           ? {
-              scale: 1.1,
-              backgroundColor: isOwnReaction
-                ? "rgba(0, 122, 255, 0.25)"
-                : "var(--color-surface)",
+              scale: 1.08,
+              backgroundColor: backgroundColor,
             }
           : undefined
       }

@@ -10,6 +10,10 @@ mod commands;
 mod state;
 mod menu;
 mod otp_detector;
+mod mcp_auth;
+mod mcp_tools;
+mod mcp_server;
+mod mcp_state;
 
 use std::path::PathBuf;
 use tracing::info;
@@ -59,6 +63,7 @@ fn main() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(app_state)
+        .manage(mcp_state::McpState::new())
         .invoke_handler(tauri::generate_handler![
             commands::connect,
             commands::try_auto_connect,
@@ -78,6 +83,7 @@ fn main() {
             commands::sync_contact_avatars,
             commands::pick_attachment_file,
             commands::send_attachment_message,
+            commands::send_attachment_data,
             commands::download_attachment,
             commands::get_message_reactions,
             commands::get_settings,
@@ -100,6 +106,13 @@ fn main() {
             commands::refresh_findmy_friends,
             commands::detect_otp_in_message,
             commands::detect_otp_in_text,
+            commands::create_scheduled_message,
+            commands::get_scheduled_messages,
+            commands::delete_scheduled_message,
+            commands::start_mcp_server,
+            commands::stop_mcp_server,
+            commands::get_mcp_status,
+            commands::regenerate_mcp_token,
         ])
         .setup(|app| {
             // Setup system tray
@@ -113,6 +126,84 @@ fn main() {
                     tracing::error!("failed to initialize services: {e}");
                 }
                 info!("services initialized");
+
+                // Auto-start MCP server if enabled in settings
+                if let Ok(conn) = state.database.conn() {
+                    use bb_models::Settings;
+                    let mcp_enabled = Settings::get(&conn, "mcp_server_enabled")
+                        .ok()
+                        .flatten()
+                        .map(|v| v == "true")
+                        .unwrap_or(false);
+
+                    if mcp_enabled {
+                        let port = Settings::get(&conn, "mcp_server_port")
+                            .ok()
+                            .flatten()
+                            .and_then(|p| p.parse::<u16>().ok())
+                            .unwrap_or(11111);
+
+                        let token = Settings::get(&conn, "mcp_server_token")
+                            .ok()
+                            .flatten();
+
+                        // Start the MCP server
+                        let mcp_state = handle.state::<mcp_state::McpState>();
+                        let auth = match token {
+                            Some(t) if !t.is_empty() => mcp_auth::McpAuth::with_token(t),
+                            _ => mcp_auth::McpAuth::new(),
+                        };
+
+                        let current_token = auth.current_token().await;
+                        let auth = std::sync::Arc::new(auth);
+                        let active_connections = std::sync::Arc::new(
+                            std::sync::atomic::AtomicU32::new(0),
+                        );
+                        let (shutdown_tx, shutdown_rx) =
+                            tokio::sync::watch::channel(false);
+
+                        let proxy_state = std::sync::Arc::new(AppState {
+                            registry: state.registry.clone(),
+                            config: state.config.clone(),
+                            database: state.database.clone(),
+                            socket_manager: state.socket_manager.clone(),
+                            setup_complete: state.setup_complete.clone(),
+                        });
+
+                        let auth_clone = auth.clone();
+                        let connections_clone = active_connections.clone();
+
+                        let server_handle = tokio::spawn(async move {
+                            if let Err(e) = mcp_server::start(
+                                auth_clone,
+                                proxy_state,
+                                port,
+                                connections_clone,
+                                shutdown_rx,
+                            )
+                            .await
+                            {
+                                tracing::warn!("mcp server auto-start error: {e}");
+                            }
+                        });
+
+                        let mcp_server_instance = mcp_state::McpServer {
+                            auth: mcp_auth::McpAuth::with_token(current_token.clone()),
+                            port,
+                            shutdown_tx,
+                            active_connections,
+                            server_handle: Some(server_handle),
+                        };
+
+                        let mut guard = mcp_state.server.write().await;
+                        *guard = Some(mcp_server_instance);
+
+                        // Persist the token if it was newly generated
+                        let _ = Settings::set(&conn, "mcp_server_token", &current_token);
+
+                        info!("mcp server auto-started on port {port}");
+                    }
+                }
             });
 
             Ok(())

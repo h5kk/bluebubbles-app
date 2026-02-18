@@ -10,6 +10,7 @@ import {
   useState,
   type CSSProperties,
 } from "react";
+import { motion } from "framer-motion";
 import { useParams, useNavigate } from "react-router-dom";
 import { useMessageStore } from "@/store/messageStore";
 import { useChatStore } from "@/store/chatStore";
@@ -20,15 +21,17 @@ import { InputBar } from "@/components/InputBar";
 import { Avatar, GroupAvatar } from "@/components/Avatar";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { LoadingLine } from "@/components/LoadingLine";
-import { ContextMenu, type ContextMenuItem } from "@/components/ContextMenu";
+import { ContextMenu, type ContextMenuItem, type TapbackOption } from "@/components/ContextMenu";
 import { DragDropZone } from "@/components/DragDropZone";
 import { ImageLightbox } from "@/components/ImageLightbox";
+import { ContactDetailsSidebar } from "@/components/ContactDetailsSidebar";
 import type { Message } from "@/hooks/useTauri";
-import { tauriSendReaction, tauriSendTypingIndicator } from "@/hooks/useTauri";
+import { tauriSendReaction, tauriSendTypingIndicator, tauriCreateScheduledMessage } from "@/hooks/useTauri";
 import { parseBBDateMs } from "@/utils/dateUtils";
 import { getDemoName, getDemoMessageSnippet, getDemoAvatarUrl } from "@/utils/demoData";
 import { useAttachmentStore } from "@/store/attachmentStore";
 import { useContactStore } from "@/store/contactStore";
+import { useFindMyStore } from "@/store/findMyStore";
 
 export function ConversationView() {
   const { chatGuid } = useParams<{ chatGuid: string }>();
@@ -43,6 +46,7 @@ export function ConversationView() {
     loadMessages,
     loadOlder,
     sendMessage,
+    sendAttachment,
   } = useMessageStore();
   const { chats, selectChat, markChatRead } = useChatStore();
   const { sendWithReturn, settings, demoMode, headerAvatarInline } = useSettingsStore();
@@ -53,6 +57,8 @@ export function ConversationView() {
   const viewRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isTypingRef = useRef(false);
+  const seenMessageGuidsRef = useRef<Set<string>>(new Set());
+  const [animationsEnabled, setAnimationsEnabled] = useState(false);
 
   // Context menu state
   const [contextMenu, setContextMenu] = useState<{
@@ -63,9 +69,17 @@ export function ConversationView() {
   }>({ open: false, x: 0, y: 0, message: null });
   const [threadOriginGuid, setThreadOriginGuid] = useState<string | null>(null);
 
+  // Contact details sidebar state
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
   // Check if typing indicators should be sent
   const shouldSendTyping =
     settings["privateSendTyping"] !== "false" &&
+    settings["enablePrivateAPI"] === "true" &&
+    serverInfo?.private_api === true;
+
+  // Check if Private API is enabled (for bubble effects)
+  const privateApiEnabled =
     settings["enablePrivateAPI"] === "true" &&
     serverInfo?.private_api === true;
 
@@ -87,6 +101,32 @@ export function ConversationView() {
     return demoMode ? getDemoName(realTitle, isGroup) : realTitle;
   }, [chatPreview, chatData, decodedGuid, demoMode, isGroup]);
 
+  // Find My location integration
+  const { getFriendByHandle, fetchFriends } = useFindMyStore();
+  const contactAddress = chatData?.participants?.[0]?.address ?? "";
+  const friendLocation = useMemo(
+    () => (!isGroup && contactAddress ? getFriendByHandle(contactAddress) : null),
+    [isGroup, contactAddress, getFriendByHandle]
+  );
+
+  const locationText = useMemo(() => {
+    if (!friendLocation || !friendLocation.address) return null;
+    // Extract city and state from address if available
+    const addressParts = friendLocation.address.split(",").map(p => p.trim());
+    if (addressParts.length >= 2) {
+      // Return last two parts (usually "City, State")
+      return addressParts.slice(-2).join(", ");
+    }
+    return friendLocation.address;
+  }, [friendLocation]);
+
+  // Load Find My friends when chat loads
+  useEffect(() => {
+    if (decodedGuid && !isGroup) {
+      fetchFriends();
+    }
+  }, [decodedGuid, isGroup, fetchFriends]);
+
   // Load messages when chat changes and mark as read
   useEffect(() => {
     if (decodedGuid) {
@@ -95,6 +135,30 @@ export function ConversationView() {
       markChatRead(decodedGuid);
     }
   }, [decodedGuid, selectChat, loadMessages, markChatRead]);
+
+  useEffect(() => {
+    seenMessageGuidsRef.current = new Set();
+    setAnimationsEnabled(false);
+  }, [decodedGuid]);
+
+  useEffect(() => {
+    if (!decodedGuid) return;
+
+    const seen = seenMessageGuidsRef.current;
+    if (!animationsEnabled && !loading) {
+      messages.forEach((m) => {
+        const key = m.guid ?? (m.id != null ? `id-${m.id}` : null);
+        if (key) seen.add(key);
+      });
+      setAnimationsEnabled(true);
+      return;
+    }
+
+    messages.forEach((m) => {
+      const key = m.guid ?? (m.id != null ? `id-${m.id}` : null);
+      if (key) seen.add(key);
+    });
+  }, [decodedGuid, messages, loading, animationsEnabled]);
 
   // Scroll to bottom when new messages arrive
   useEffect(() => {
@@ -173,15 +237,49 @@ export function ConversationView() {
     [sendMessage, decodedGuid]
   );
 
+  // Send with bubble effect handler
+  const handleSendWithEffect = useCallback(
+    (text: string, effectId: string) => {
+      // Stop typing indicator when sending
+      if (isTypingRef.current && decodedGuid) {
+        isTypingRef.current = false;
+        tauriSendTypingIndicator(decodedGuid, "stop").catch(() => {});
+      }
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      sendMessage(text, effectId);
+    },
+    [sendMessage, decodedGuid]
+  );
+
+  // Schedule send handler
+  const handleScheduleSend = useCallback(
+    async (text: string, scheduledFor: number) => {
+      if (!decodedGuid) return;
+      // Stop typing indicator
+      if (isTypingRef.current && decodedGuid) {
+        isTypingRef.current = false;
+        tauriSendTypingIndicator(decodedGuid, "stop").catch(() => {});
+      }
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      try {
+        await tauriCreateScheduledMessage(decodedGuid, text, scheduledFor);
+      } catch (err) {
+        console.error("Failed to schedule message:", err);
+      }
+    },
+    [decodedGuid]
+  );
+
   // Attachment send handler
   const handleSendAttachment = useCallback(
     (file: File) => {
-      console.log("Sending attachment:", file.name, file.type, file.size);
-      // TODO: Implement actual attachment sending via Tauri command
-      // For now, just log it
-      alert(`Screenshot pasted! File: ${file.name} (${Math.round(file.size / 1024)}KB)\n\nAttachment sending not yet implemented in backend.`);
+      sendAttachment(file);
     },
-    []
+    [sendAttachment]
   );
 
   // Message context menu handler
@@ -234,7 +332,22 @@ export function ConversationView() {
   const handleReactToMessage = useCallback((reaction: string) => {
     if (!decodedGuid || !contextMenu.message?.guid) return;
     const messageText = contextMenu.message.text ?? "";
-    tauriSendReaction(decodedGuid, messageText, contextMenu.message.guid, reaction).catch(() => {});
+
+    // Check if current user already has this reaction - if so, send removal
+    const existingReaction = contextMenu.message.associated_messages?.find(
+      (m) =>
+        m.is_from_me &&
+        m.associated_message_type != null &&
+        !m.associated_message_type.startsWith("-") &&
+        m.associated_message_type.toLowerCase().replace(/[^a-z]/g, "") === reaction
+    );
+    const finalReaction = existingReaction ? `-${reaction}` : reaction;
+
+    // Optimistic UI update
+    const { addOptimisticReaction } = useMessageStore.getState();
+    addOptimisticReaction(contextMenu.message.guid, finalReaction);
+
+    tauriSendReaction(decodedGuid, messageText, contextMenu.message.guid, finalReaction).catch(() => {});
   }, [contextMenu.message, decodedGuid]);
 
   const handleReaction = useCallback(
@@ -243,7 +356,22 @@ export function ConversationView() {
       const message = messages.find((m) => m.guid === messageGuid);
       if (!message) return;
       const messageText = message.text ?? "";
-      tauriSendReaction(decodedGuid, messageText, messageGuid, reaction).catch(() => {});
+
+      // Check if current user already has this reaction - if so, send removal
+      const existingReaction = message.associated_messages?.find(
+        (m) =>
+          m.is_from_me &&
+          m.associated_message_type != null &&
+          !m.associated_message_type.startsWith("-") &&
+          m.associated_message_type.toLowerCase().replace(/[^a-z]/g, "") === reaction
+      );
+      const finalReaction = existingReaction ? `-${reaction}` : reaction;
+
+      // Optimistic UI update
+      const { addOptimisticReaction } = useMessageStore.getState();
+      addOptimisticReaction(messageGuid, finalReaction);
+
+      tauriSendReaction(decodedGuid, messageText, messageGuid, finalReaction).catch(() => {});
     },
     [decodedGuid, messages]
   );
@@ -280,7 +408,17 @@ export function ConversationView() {
     [chatData, chatPreview, demoMode]
   );
 
-  // Build message context menu items
+  // Tapback options for context menu (iMessage-style emoji row)
+  const TAPBACK_OPTIONS: TapbackOption[] = useMemo(() => [
+    { emoji: "\u2764\uFE0F", name: "love" },
+    { emoji: "\uD83D\uDC4D", name: "like" },
+    { emoji: "\uD83D\uDC4E", name: "dislike" },
+    { emoji: "\uD83D\uDE02", name: "laugh" },
+    { emoji: "\u203C\uFE0F", name: "emphasize" },
+    { emoji: "\u2753", name: "question" },
+  ], []);
+
+  // Build message context menu items (without reactions - those go in tapback row)
   const messageContextMenuItems: ContextMenuItem[] = useMemo(() => {
     if (!contextMenu.message) return [];
 
@@ -300,30 +438,8 @@ export function ConversationView() {
       onClick: handleReplyToMessage,
     });
 
-    items.push({ label: "", onClick: () => {}, divider: true });
-
-    items.push({
-      label: "❤️ Love",
-      onClick: () => handleReactToMessage("love"),
-    });
-
-    items.push({
-      label: "👍 Like",
-      onClick: () => handleReactToMessage("like"),
-    });
-
-    items.push({
-      label: "😂 Laugh",
-      onClick: () => handleReactToMessage("laugh"),
-    });
-
-    items.push({
-      label: "❗ Emphasize",
-      onClick: () => handleReactToMessage("emphasize"),
-    });
-
     return items;
-  }, [contextMenu.message, handleCopyMessage, handleReplyToMessage, handleReactToMessage]);
+  }, [contextMenu.message, handleCopyMessage, handleReplyToMessage]);
 
   const threadOriginMessage = useMemo(() => {
     if (!threadOriginGuid) return null;
@@ -403,11 +519,20 @@ export function ConversationView() {
   );
 
   const containerStyle: CSSProperties = {
+    display: "flex",
+    flex: 1,
+    height: "100%",
+    minHeight: 0, // Critical for flex children with overflow
+    overflow: "hidden",
+    backgroundColor: "var(--color-surface)",
+  };
+
+  const conversationContainerStyle: CSSProperties = {
     display: "grid",
     gridTemplateRows: "auto 1fr auto",
     flex: 1,
     height: "100%",
-    minHeight: 0, // Critical for flex children with overflow
+    minHeight: 0,
     overflow: "hidden",
     backgroundColor: "var(--color-surface)",
   };
@@ -456,12 +581,11 @@ export function ConversationView() {
 
   return (
     <div style={containerStyle} ref={viewRef} data-conversation-view>
+      <div style={conversationContainerStyle}>
       {/* Chat header - centered avatar and name */}
       <div
         style={headerStyle}
-        onClick={() =>
-          navigate(`/chat/${encodeURIComponent(decodedGuid)}/details`)
-        }
+        onClick={() => setSidebarOpen(true)}
       >
         {/* Center content: avatar + name */}
         <div
@@ -511,7 +635,7 @@ export function ConversationView() {
               <span
                 style={{
                   fontSize: 13,
-                  fontWeight: 600,
+                  fontWeight: 700,
                   color: "var(--color-on-surface)",
                 }}
               >
@@ -535,6 +659,19 @@ export function ConversationView() {
                   : isImessage
                     ? "iMessage"
                     : "SMS"}
+              </span>
+            )}
+            {/* Find My location text */}
+            {locationText && !isGroup && (
+              <span
+                style={{
+                  fontSize: 10,
+                  color: "var(--color-on-surface-variant)",
+                  fontWeight: 400,
+                  opacity: 0.8,
+                }}
+              >
+                {locationText}
               </span>
             )}
             {/* Blue progress line under contact info when sending */}
@@ -665,17 +802,47 @@ export function ConversationView() {
         )}
 
         {/* Messages rendered oldest-first (reversed view is memoized in groupedMessages) */}
-        {reversedMessages.map((item) => {
+        {reversedMessages.map((item, index) => {
           const guid = item.message.guid ?? "";
+          const messageKey =
+            item.message.guid ??
+            (item.message.id != null ? `id-${item.message.id}` : `idx-${index}`);
           const inThread = !threadOriginGuid || (guid && threadMessageGuids.has(guid));
+          const isSent = item.message.is_from_me;
+          const isNew =
+            animationsEnabled &&
+            messageKey &&
+            !seenMessageGuidsRef.current.has(messageKey);
+
+          const baseOpacity = inThread ? 1 : 0.35;
+          const enterX = isSent ? 14 : -14;
+          const enterY = 10;
+
           return (
-            <div
-              key={item.message.guid ?? item.message.id}
+            <motion.div
+              key={messageKey}
+              initial={
+                isNew
+                  ? { opacity: 0, y: enterY, x: enterX, scale: 0.98 }
+                  : false
+              }
+              animate={{ opacity: baseOpacity, y: 0, x: 0, scale: 1 }}
+              transition={
+                isNew
+                  ? {
+                      type: "spring",
+                      stiffness: isSent ? 520 : 460,
+                      damping: isSent ? 34 : 36,
+                      mass: 0.85,
+                    }
+                  : { type: "tween", duration: 0.15 }
+              }
+              layout="position"
               style={{
-                opacity: inThread ? 1 : 0.35,
                 filter: inThread ? "none" : "grayscale(0.2)",
-                transition: "opacity 150ms ease",
                 cursor: threadOriginGuid && !inThread ? "pointer" : "default",
+                transformOrigin: isSent ? "right bottom" : "left bottom",
+                willChange: isNew ? "transform, opacity" : undefined,
               }}
               onClick={() => {
                 if (threadOriginGuid && !inThread) setThreadOriginGuid(null);
@@ -693,7 +860,7 @@ export function ConversationView() {
                 onReaction={handleReaction}
                 getContactName={getContactName}
               />
-            </div>
+            </motion.div>
           );
         })}
 
@@ -736,6 +903,9 @@ export function ConversationView() {
           onSend={handleSend}
           onSendAttachment={handleSendAttachment}
           onTyping={handleTypingChange}
+          onSendWithEffect={handleSendWithEffect}
+          onScheduleSend={handleScheduleSend}
+          privateApiEnabled={privateApiEnabled}
           sending={sending}
           sendWithReturn={sendWithReturn}
           placeholder={isImessage ? "iMessage" : "Text Message"}
@@ -750,10 +920,22 @@ export function ConversationView() {
         y={contextMenu.y}
         items={messageContextMenuItems}
         onClose={closeContextMenu}
+        tapbacks={TAPBACK_OPTIONS}
+        onTapback={handleReactToMessage}
       />
 
       {/* Image Lightbox */}
       <ImageLightbox />
+      </div>
+
+      {/* Contact Details Sidebar */}
+      <ContactDetailsSidebar
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        chatData={chatData}
+        participantNames={chatPreview?.participant_names ?? []}
+        title={title}
+      />
     </div>
   );
 }

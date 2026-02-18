@@ -397,6 +397,15 @@ export const MessageBubble = memo(function MessageBubble({
   const hasError = message.error !== 0;
   const isGroupEvent = message.item_type !== 0;
 
+  // DEBUG: log messages that might have attachments
+  if (message.has_attachments || (message.attachments && message.attachments.length > 0)) {
+    console.log('[MSG_ATT]', message.guid, 'has_attachments:', message.has_attachments, 'att_count:', message.attachments?.length, 'atts:', message.attachments);
+  }
+  // Also log messages with no text (might be image-only)
+  if (!message.text && !isGroupEvent) {
+    console.log('[MSG_EMPTY]', message.guid, 'has_attachments:', message.has_attachments, 'att_count:', message.attachments?.length);
+  }
+
   const bubbleRef = useRef<HTMLDivElement>(null);
   const [tailClipPath, setTailClipPath] = useState<string | null>(null);
   const [isVisible, setIsVisible] = useState(true);
@@ -437,10 +446,66 @@ export const MessageBubble = memo(function MessageBubble({
 
   // Detect image attachments for edge-to-edge image rendering
   const hasImageAttachments =
-    message.has_attachments &&
-    message.attachments?.some((a) => a.mime_type?.startsWith("image/"));
+    message.attachments &&
+    message.attachments.length > 0 &&
+    message.attachments.some((a) => a.mime_type?.startsWith("image/"));
   // When images are present, use zero padding on bubble and wrap text in its own padded div
   const useImageLayout = !!hasImageAttachments;
+
+  // Reactions display - net-count algorithm that cancels add/remove pairs
+  const activeReactions = useMemo(() => {
+    const allReactions = message.associated_messages?.filter(
+      (m) => m.associated_message_type != null
+    );
+    if (!allReactions || allReactions.length === 0) return [];
+
+    // Sort by date_created ASC so removals cancel the correct additions
+    const sorted = [...allReactions].sort((a, b) => {
+      const aTime = a.date_created ? new Date(a.date_created).getTime() : 0;
+      const bTime = b.date_created ? new Date(b.date_created).getTime() : 0;
+      return aTime - bTime;
+    });
+
+    // Track active reactions keyed by "sender|normalizedType"
+    // Value is the reaction message itself
+    const activeSet = new Map<string, Message>();
+
+    for (const r of sorted) {
+      const rawType = r.associated_message_type ?? "";
+      const isRemoval = rawType.startsWith("-");
+      const normalized = rawType.replace(/^-/, "").toLowerCase().replace(/[^a-z]/g, "");
+      // Use handle_id for others, "me" for own reactions
+      const senderKey = r.is_from_me ? "me" : String(r.handle_id ?? "unknown");
+      const key = `${senderKey}|${normalized}`;
+
+      if (isRemoval) {
+        // Cancel the matching active reaction from same sender
+        activeSet.delete(key);
+      } else {
+        // Add (or replace) the reaction
+        activeSet.set(key, r);
+      }
+    }
+
+    return Array.from(activeSet.values());
+  }, [message.associated_messages]);
+
+  // Group active reactions by type for rendering
+  const reactionGroups = useMemo(() => {
+    if (activeReactions.length === 0) return [];
+    const groups = new Map<string, { emoji: string; count: number; isOwn: boolean }>();
+    for (const r of activeReactions) {
+      const normalized = (r.associated_message_type ?? "").toLowerCase().replace(/[^a-z]/g, "");
+      const emoji = getReactionEmoji(r.associated_message_type);
+      if (!groups.has(normalized)) {
+        groups.set(normalized, { emoji, count: 0, isOwn: false });
+      }
+      const group = groups.get(normalized)!;
+      group.count++;
+      if (r.is_from_me) group.isOwn = true;
+    }
+    return Array.from(groups.values());
+  }, [activeReactions]);
 
   const containerStyle: CSSProperties = {
     display: "flex",
@@ -448,6 +513,7 @@ export const MessageBubble = memo(function MessageBubble({
     alignItems: isSent ? "flex-end" : "flex-start",
     paddingLeft: isSent ? 0 : "10px",
     paddingRight: isSent ? "10px" : 0,
+    marginTop: reactionGroups.length > 0 ? "10px" : 0,
     marginBottom: isLastInGroup ? "8px" : "2px",
   };
 
@@ -582,6 +648,15 @@ export const MessageBubble = memo(function MessageBubble({
     setShowReactionDetails(true);
   }, []);
 
+  const handleDoubleClick = useCallback(() => {
+    // Don't open picker if user is selecting text
+    const selection = window.getSelection();
+    if (selection && selection.toString().length > 0) return;
+    if (onReaction) {
+      setShowReactionPicker(true);
+    }
+  }, [onReaction]);
+
   const bubbleStyle: CSSProperties = isBigEmoji
     ? {
         fontSize: "42px",
@@ -614,11 +689,6 @@ export const MessageBubble = memo(function MessageBubble({
       bubbleStyle.paddingLeft = `calc(var(--bubble-padding-h) + ${tailPadding}px)`;
     }
   }
-
-  // Reactions display
-  const reactions = message.associated_messages?.filter(
-    (m) => m.associated_message_type != null
-  );
 
   // Group events (name changes, participant added/removed) render as centered system messages
   if (isGroupEvent) {
@@ -674,6 +744,7 @@ export const MessageBubble = memo(function MessageBubble({
           style={{
             fontSize: "var(--font-body-small)",
             color: "var(--color-on-surface-variant)",
+            fontWeight: 700,
             marginBottom: 2,
             marginLeft: 4,
           }}
@@ -689,6 +760,7 @@ export const MessageBubble = memo(function MessageBubble({
           e.preventDefault();
           onContextMenu?.(message, e);
         }}
+        onDoubleClick={handleDoubleClick}
         onPointerDown={handlePointerDown}
         onPointerUp={clearLongPress}
         onPointerCancel={clearLongPress}
@@ -715,8 +787,7 @@ export const MessageBubble = memo(function MessageBubble({
           )}
 
           {/* Attachments rendered above text */}
-          {message.has_attachments &&
-            message.attachments &&
+          {message.attachments &&
             message.attachments.length > 0 && (
               <AttachmentRenderer
                 attachments={message.attachments}
@@ -738,8 +809,7 @@ export const MessageBubble = memo(function MessageBubble({
             ) : (
               message.text
             )
-          ) : !message.has_attachments ||
-              !message.attachments ||
+          ) : !message.attachments ||
               message.attachments.length === 0 ? (
             ""
           ) : null}
@@ -758,6 +828,34 @@ export const MessageBubble = memo(function MessageBubble({
             </span>
           )}
         </div>
+
+        {/* Reactions overlay (iMessage-style) */}
+        {reactionGroups.length > 0 && (
+          <div
+            style={{
+              position: "absolute",
+              top: -10,
+              ...(isSent ? { left: 10 } : { right: 10 }),
+              display: "inline-flex",
+              gap: 4,
+              zIndex: 3,
+              pointerEvents: "auto",
+              maxWidth: "calc(var(--bubble-max-width) - 12px)",
+            }}
+          >
+            {reactionGroups.map((group, i) => (
+              <ReactionBubble
+                key={i}
+                emoji={group.emoji}
+                count={group.count}
+                isOwnReaction={group.isOwn}
+                isSent={isSent}
+                accentColor={isSent ? bubbleColor : "var(--color-on-surface)"}
+                onClick={handleReactionClick}
+              />
+            ))}
+          </div>
+        )}
 
         {/* Bubble tail - only on last message in group */}
         {isLastInGroup && !isBigEmoji && (
@@ -782,46 +880,6 @@ export const MessageBubble = memo(function MessageBubble({
           </svg>
         )}
       </div>
-
-      {/* Reactions */}
-      {reactions && reactions.length > 0 && (
-        <div
-          style={{
-            display: "flex",
-            gap: 4,
-            marginTop: -6,
-            marginBottom: 2,
-            [isSent ? "marginRight" : "marginLeft"]: 12,
-          }}
-        >
-          {(() => {
-            // Group reactions by type
-            const reactionGroups = new Map<string, { emoji: string; count: number; isOwn: boolean }>();
-            reactions.forEach((r) => {
-              const type = r.associated_message_type?.toLowerCase() || "unknown";
-              const normalized = type.replace(/[^a-z]/g, "");
-              const emoji = getReactionEmoji(r.associated_message_type);
-
-              if (!reactionGroups.has(normalized)) {
-                reactionGroups.set(normalized, { emoji, count: 0, isOwn: r.is_from_me });
-              }
-              const group = reactionGroups.get(normalized)!;
-              group.count++;
-              if (r.is_from_me) group.isOwn = true;
-            });
-
-            return Array.from(reactionGroups.values()).map((group, i) => (
-              <ReactionBubble
-                key={i}
-                emoji={group.emoji}
-                count={group.count}
-                isOwnReaction={group.isOwn}
-                onClick={handleReactionClick}
-              />
-            ));
-          })()}
-        </div>
-      )}
 
       {/* Delivered status - only on last sent message in group */}
       {isSent && isLastInGroup && !hasError && (
@@ -853,11 +911,11 @@ export const MessageBubble = memo(function MessageBubble({
       )}
 
       {/* Reaction Details Sheet */}
-      {reactions && reactions.length > 0 && (
+      {activeReactions.length > 0 && (
         <ReactionDetailSheet
           isOpen={showReactionDetails}
           onClose={() => setShowReactionDetails(false)}
-          reactions={reactions}
+          reactions={activeReactions}
           getContactName={getContactName}
         />
       )}

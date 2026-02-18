@@ -153,6 +153,24 @@ export function Sidebar({ width = 315, children }: SidebarProps) {
           </SidebarIconButton>
 
           <SidebarIconButton
+            label="Find My"
+            onClick={() => navigate("/findmy")}
+          >
+            {/* Find My icon - location pin */}
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path
+                d="M8 1C5.24 1 3 3.24 3 6C3 9.5 8 15 8 15C8 15 13 9.5 13 6C13 3.24 10.76 1 8 1Z"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                fill="none"
+              />
+              <circle cx="8" cy="6" r="1.5" fill="currentColor" />
+            </svg>
+          </SidebarIconButton>
+
+          <SidebarIconButton
             label={isDark ? "Switch to light mode" : "Switch to dark mode"}
             onClick={() => {
               if (themeMode === "light") setThemeMode("dark");

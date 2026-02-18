@@ -60,7 +60,7 @@ pub struct Message {
 impl Message {
     /// Create a Message from a server JSON map.
     pub fn from_server_map(map: &serde_json::Value) -> BbResult<Self> {
-        Ok(Self {
+        let mut result = Ok(Self {
             id: None,
             original_rowid: map.get("ROWID").and_then(|v| v.as_i64())
                 .or_else(|| map.get("originalROWID").and_then(|v| v.as_i64())),
@@ -90,7 +90,6 @@ impl Message {
             associated_message_part: map.get("associatedMessagePart").and_then(|v| v.as_i64()).map(|v| v as i32),
             associated_message_type: map.get("associatedMessageType").and_then(|v| v.as_str()).map(String::from),
             expressive_send_style_id: map.get("expressiveSendStyleId").and_then(|v| v.as_str()).map(String::from),
-            has_attachments: map.get("hasAttachments").and_then(|v| v.as_bool()).unwrap_or(false),
             has_reactions: map.get("hasReactions").and_then(|v| v.as_bool()).unwrap_or(false),
             date_deleted: map.get("dateDeleted").and_then(|v| v.as_str()).map(String::from),
             thread_originator_guid: map.get("threadOriginatorGuid").and_then(|v| v.as_str()).map(String::from),
@@ -106,9 +105,29 @@ impl Message {
             did_notify_recipient: map.get("didNotifyRecipient").and_then(|v| v.as_bool()).unwrap_or(false),
             is_bookmarked: map.get("isBookmarked").and_then(|v| v.as_bool()).unwrap_or(false),
             handle: None,
-            attachments: vec![],
+            // Parse attachments first, then derive has_attachments from both the
+            // server field (if present) AND the actual parsed attachment count.
+            // The BB server often omits the hasAttachments field entirely.
+            attachments: {
+                let parsed: Vec<super::attachment::Attachment> = map.get("attachments")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|a| super::attachment::Attachment::from_server_map(a).ok())
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                parsed
+            },
+            has_attachments: false, // placeholder, set below
             associated_messages: vec![],
-        })
+        });
+        // Derive has_attachments from the server field OR the actual attachment count
+        if let Ok(ref mut msg) = result {
+            let server_has = map.get("hasAttachments").and_then(|v| v.as_bool()).unwrap_or(false);
+            msg.has_attachments = server_has || !msg.attachments.is_empty();
+        }
+        result
     }
 
     /// Construct a Message from a database row.

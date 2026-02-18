@@ -21,10 +21,25 @@ import { tauriGetContacts, type Contact } from "@/hooks/useTauri";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
+function normalizeEpochMs(value: number): number | null {
+  if (!Number.isFinite(value) || value <= 0) return null;
+  // If value looks like seconds since epoch, convert to ms.
+  if (value < 100_000_000_000) {
+    return value * 1000;
+  }
+  // If value looks like microseconds since epoch, convert to ms.
+  if (value > 100_000_000_000_000) {
+    return Math.round(value / 1000);
+  }
+  return value;
+}
+
 function formatLocationTime(epochMs: number): string {
+  const normalized = normalizeEpochMs(epochMs);
+  if (!normalized) return "Unknown";
   const now = Date.now();
-  const diffMs = now - epochMs;
-  const diffSec = Math.floor(diffMs / 1000);
+  const diffMs = now - normalized;
+  const diffSec = Math.floor(Math.max(diffMs, 0) / 1000);
 
   if (diffSec < 60) return "Just now";
   const diffMin = Math.floor(diffSec / 60);
@@ -34,7 +49,7 @@ function formatLocationTime(epochMs: number): string {
   const diffDays = Math.floor(diffHr / 24);
   if (diffDays < 7) return `${diffDays}d ago`;
 
-  const date = new Date(epochMs);
+  const date = new Date(normalized);
   return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
@@ -75,18 +90,66 @@ function statusColor(status: string | null): string {
 }
 
 function statusLabel(status: string | null): string {
-  if (!status) return "Unknown";
-  const s = status.toLowerCase();
-  if (s === "live" || s === "sharing") return "Live";
-  if (s === "shallow") return "Shallow";
-  if (s === "legacy") return "Legacy";
-  return status;
+  return status ?? "";
 }
 
 /** Detect if the current theme is a dark variant by checking the data-theme attribute. */
 function isDarkTheme(): boolean {
   const theme = document.documentElement.getAttribute("data-theme") ?? "";
   return theme.includes("dark") || theme.includes("oled") || theme.includes("nord");
+}
+
+function stripHandlePrefix(handle: string): string {
+  return handle.replace(/^mailto:/i, "").replace(/^tel:/i, "").trim();
+}
+
+function normalizePhoneNumber(input: string): string {
+  return input.replace(/\D/g, "");
+}
+
+function normalizeEmailAddress(input: string): string {
+  return input.trim().toLowerCase();
+}
+
+function buildHandleKey(handle: string): string | null {
+  const cleaned = stripHandlePrefix(handle);
+  if (!cleaned) return null;
+  if (cleaned.includes("@")) {
+    const normalized = normalizeEmailAddress(cleaned);
+    return normalized ? `email:${normalized}` : null;
+  }
+  const normalized = normalizePhoneNumber(cleaned);
+  return normalized ? `phone:${normalized}` : null;
+}
+
+function parseContactAddresses(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed === "[]") return [];
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (Array.isArray(parsed)) {
+      return parsed.flatMap((entry) => {
+        if (!entry) return [];
+        if (typeof entry === "string") return [entry];
+        if (typeof entry === "object") {
+          const record = entry as Record<string, unknown>;
+          const address = record.address ?? record.value;
+          return typeof address === "string" ? [address] : [];
+        }
+        return [];
+      });
+    }
+  } catch {
+    // Fall through to raw string handling
+  }
+  return [trimmed];
+}
+
+function getContactKey(contact: Contact): string {
+  if (contact.id != null) return `id:${contact.id}`;
+  if (contact.external_id) return `ext:${contact.external_id}`;
+  return `name:${contact.display_name}`;
 }
 
 // ─── Custom Leaflet Marker Icons ────────────────────────────────────────────
@@ -195,6 +258,17 @@ function MapBoundsFitter({
   return null;
 }
 
+function MapSizeWatcher({ height }: { height: number | null }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (height == null) return;
+    map.invalidateSize();
+  }, [height, map]);
+
+  return null;
+}
+
 // ─── Main Component ─────────────────────────────────────────────────────────
 
 export function FindMy() {
@@ -226,8 +300,70 @@ export function FindMy() {
   const devices = getAllDevices();
   const rawFriends = getAllFriends();
   const listRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   const darkMode = useMemo(() => isDarkTheme(), []);
+
+  // Map/list resize state
+  const defaultMapRatio = 0.36; // 35% smaller than previous 55% height
+  const minMapHeightPx = 180;
+  const minListHeightPx = 180;
+  const [mapHeightRatio, setMapHeightRatio] = useState(defaultMapRatio);
+  const [contentHeight, setContentHeight] = useState(0);
+  const draggingRef = useRef(false);
+  const [isDragging, setIsDragging] = useState(false);
+
+  useEffect(() => {
+    const el = contentRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+
+    const update = () => {
+      setContentHeight(el.clientHeight);
+    };
+
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const updateMapHeightFromPointer = useCallback(
+    (clientY: number) => {
+      const el = contentRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      if (rect.height <= 0) return;
+
+      const maxMapHeight = Math.max(minMapHeightPx, rect.height - minListHeightPx);
+      const raw = clientY - rect.top;
+      const clamped = Math.min(maxMapHeight, Math.max(minMapHeightPx, raw));
+      const ratio = clamped / rect.height;
+      setMapHeightRatio(ratio);
+    },
+    [minMapHeightPx, minListHeightPx]
+  );
+
+  useEffect(() => {
+    const handlePointerMove = (event: PointerEvent) => {
+      if (!draggingRef.current) return;
+      updateMapHeightFromPointer(event.clientY);
+    };
+
+    const handlePointerUp = () => {
+      if (!draggingRef.current) return;
+      draggingRef.current = false;
+      setIsDragging(false);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    };
+  }, [updateMapHeightFromPointer]);
 
   // Load contacts for name lookup
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -238,49 +374,60 @@ export function FindMy() {
       .catch((err) => console.error("FindMy: Failed to load contacts:", err));
   }, []);
 
+  const contactLookup = useMemo(() => {
+    const handleToContactKey = new Map<string, string>();
+    const contactByKey = new Map<string, Contact>();
+
+    contacts.forEach((contact) => {
+      const contactKey = getContactKey(contact);
+      contactByKey.set(contactKey, contact);
+
+      const phones = parseContactAddresses(contact.phones);
+      phones.forEach((phone) => {
+        const normalized = normalizePhoneNumber(phone);
+        if (normalized) {
+          handleToContactKey.set(`phone:${normalized}`, contactKey);
+        }
+      });
+
+      const emails = parseContactAddresses(contact.emails);
+      emails.forEach((email) => {
+        const normalized = normalizeEmailAddress(email);
+        if (normalized) {
+          handleToContactKey.set(`email:${normalized}`, contactKey);
+        }
+      });
+    });
+
+    return { handleToContactKey, contactByKey };
+  }, [contacts]);
+
   // Helper: Find contact by handle (phone or email)
-  const findContactByHandle = useCallback((handle: string, contactsList: Contact[]): Contact | null => {
-    return contactsList.find(contact => {
-      try {
-        // Parse phones and emails (they're JSON strings)
-        const phones = JSON.parse(contact.phones || '[]') as string[];
-        const emails = JSON.parse(contact.emails || '[]') as string[];
-
-        // Normalize handle for comparison
-        const normalizedHandle = handle.toLowerCase().replace(/\s/g, '');
-
-        // Check if handle matches any phone (compare digits only)
-        const matchesPhone = phones.some((p: string) =>
-          p.replace(/\D/g, '') === handle.replace(/\D/g, '')
-        );
-
-        // Check if handle matches any email
-        const matchesEmail = emails.some((e: string) =>
-          e.toLowerCase() === normalizedHandle
-        );
-
-        return matchesPhone || matchesEmail;
-      } catch (err) {
-        console.error("Error parsing contact data:", err);
-        return false;
-      }
-    }) ?? null;
-  }, []);
+  const findContactByHandle = useCallback(
+    (handle: string): Contact | null => {
+      const handleKey = buildHandleKey(handle);
+      if (!handleKey) return null;
+      const contactKey = contactLookup.handleToContactKey.get(handleKey);
+      return contactKey ? contactLookup.contactByKey.get(contactKey) ?? null : null;
+    },
+    [contactLookup]
+  );
 
   // Deduplicate friends by contact - group handles that belong to same contact
   const deduplicatedFriends = useMemo(() => {
     const friendsArray = rawFriends;
-    const contactMap = new Map<number, FindMyFriend[]>();
+    const contactMap = new Map<string, FindMyFriend[]>();
     const noContactList: FindMyFriend[] = [];
 
     // Group friends by contact ID
-    friendsArray.forEach(friend => {
-      const contact = findContactByHandle(friend.handle, contacts);
-      if (contact?.id) {
-        if (!contactMap.has(contact.id)) {
-          contactMap.set(contact.id, []);
+    friendsArray.forEach((friend) => {
+      const contact = findContactByHandle(friend.handle);
+      if (contact) {
+        const contactKey = getContactKey(contact);
+        if (!contactMap.has(contactKey)) {
+          contactMap.set(contactKey, []);
         }
-        contactMap.get(contact.id)!.push(friend);
+        contactMap.get(contactKey)!.push(friend);
       } else {
         noContactList.push(friend);
       }
@@ -289,17 +436,23 @@ export function FindMy() {
     // For each contact, pick the most recent location
     const deduplicated: FindMyFriend[] = [];
 
-    contactMap.forEach((friends, contactId) => {
-      const contact = contacts.find(c => c.id === contactId)!;
+    contactMap.forEach((friendsGroup, contactKey) => {
+      const contact = contactLookup.contactByKey.get(contactKey);
       // Pick friend with most recent location
-      const mostRecent = friends.sort((a, b) =>
+      const mostRecent = friendsGroup.sort((a, b) =>
         (b.last_updated ?? 0) - (a.last_updated ?? 0)
       )[0];
 
-      // Override name with contact display_name
+      const contactName = contact?.display_name?.trim();
+      const resolvedName =
+        contactName && contactName.toLowerCase() !== "unknown"
+          ? contactName
+          : mostRecent.name;
+
+      // Override name with contact display_name when available
       deduplicated.push({
         ...mostRecent,
-        name: contact.display_name,
+        name: resolvedName,
       });
     });
 
@@ -310,12 +463,13 @@ export function FindMy() {
     return deduplicated.sort((a, b) =>
       (b.last_updated ?? 0) - (a.last_updated ?? 0)
     );
-  }, [rawFriends, contacts, findContactByHandle]);
+  }, [rawFriends, contactLookup, findContactByHandle]);
 
   // Enrich deduplicated friends with contact avatar URLs
   const friends: (FindMyFriend & { avatarUrl?: string })[] = useMemo(() => {
     return deduplicatedFriends.map((friend) => {
-      const avatarUrl = getAvatar(friend.handle);
+      const cleanedHandle = stripHandlePrefix(friend.handle);
+      const avatarUrl = getAvatar(cleanedHandle);
       return {
         ...friend,
         avatarUrl: avatarUrl ?? undefined,
@@ -356,12 +510,15 @@ export function FindMy() {
     return positions;
   }, [selectedTab, devices, friends]);
 
+  const mapHeightPx = useMemo(() => {
+    if (!contentHeight) return null;
+    const raw = contentHeight * mapHeightRatio;
+    const maxMapHeight = Math.max(minMapHeightPx, contentHeight - minListHeightPx);
+    return Math.min(maxMapHeight, Math.max(minMapHeightPx, raw));
+  }, [contentHeight, mapHeightRatio, minMapHeightPx, minListHeightPx]);
+
   const deviceMarkerIcon = useMemo(
     () => createSvgIcon("#2C6BED", "\uD83D\uDCCD"),
-    []
-  );
-  const friendMarkerIcon = useMemo(
-    () => createSvgIcon("#34C759", "\uD83D\uDC64"),
     []
   );
 
@@ -528,11 +685,21 @@ export function FindMy() {
         </div>
       )}
 
+      <div
+        ref={contentRef}
+        style={{
+          flex: 1,
+          minHeight: 0,
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+        }}
+      >
       {/* Map */}
       <div
         style={{
-          flex: "0 0 55%",
-          minHeight: 200,
+          height: mapHeightPx ? `${mapHeightPx}px` : `${defaultMapRatio * 100}%`,
+          minHeight: minMapHeightPx,
           position: "relative",
           borderBottom: "1px solid var(--color-surface-variant)",
         }}
@@ -549,6 +716,7 @@ export function FindMy() {
             positions={allMapPositions}
             focusPosition={focusPosition}
           />
+          <MapSizeWatcher height={mapHeightPx} />
 
           {/* Device markers */}
           {selectedTab === "devices" &&
@@ -673,11 +841,52 @@ export function FindMy() {
         )}
       </div>
 
+      {/* Drag handle */}
+      <div
+        role="separator"
+        aria-orientation="horizontal"
+        aria-label="Resize map"
+        onPointerDown={(event) => {
+          event.preventDefault();
+          draggingRef.current = true;
+          setIsDragging(true);
+          document.body.style.cursor = "row-resize";
+          document.body.style.userSelect = "none";
+          updateMapHeightFromPointer(event.clientY);
+        }}
+        style={{
+          height: 8,
+          cursor: "row-resize",
+          backgroundColor: isDragging
+            ? "var(--color-primary-container)"
+            : "var(--color-surface-variant)",
+          borderTop: "1px solid var(--color-surface-variant)",
+          borderBottom: "1px solid var(--color-surface-variant)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+        }}
+      >
+        <div
+          style={{
+            width: 40,
+            height: 3,
+            borderRadius: 999,
+            backgroundColor: isDragging
+              ? "var(--color-primary)"
+              : "var(--color-outline)",
+            opacity: 0.8,
+          }}
+        />
+      </div>
+
       {/* List Section */}
       <div
         ref={listRef}
         style={{
           flex: 1,
+          minHeight: minListHeightPx,
           overflow: "auto",
           padding: "12px 16px",
         }}
@@ -767,6 +976,7 @@ export function FindMy() {
             ))}
           </div>
         )}
+      </div>
       </div>
     </div>
   );
@@ -1124,9 +1334,9 @@ function FriendCard({ friend, isSelected, onClick }: FriendCardProps) {
       <div style={{ position: "relative", flexShrink: 0 }}>
         <Avatar
           name={friend.name}
-          address={friend.handle}
-          size={40}
+          address={stripHandlePrefix(friend.handle)}
           avatarUrl={friend.avatarUrl}
+          size={40}
           showInitials
         />
         {/* Status dot on avatar */}
@@ -1201,23 +1411,25 @@ function FriendCard({ friend, isSelected, onClick }: FriendCardProps) {
           flexShrink: 0,
         }}
       >
-        <span
-          style={{
-            fontSize: 10,
-            fontWeight: 500,
-            color: sColor,
-            backgroundColor:
-              sColor === "#34C759"
-                ? "rgba(52,199,89,0.12)"
-                : sColor === "#FF9500"
-                ? "rgba(255,149,0,0.12)"
-                : "var(--color-surface-variant)",
-            padding: "2px 8px",
-            borderRadius: 8,
-          }}
-        >
-          {sLabel}
-        </span>
+        {sLabel && (
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 500,
+              color: sColor,
+              backgroundColor:
+                sColor === "#34C759"
+                  ? "rgba(52,199,89,0.12)"
+                  : sColor === "#FF9500"
+                  ? "rgba(255,149,0,0.12)"
+                  : "var(--color-surface-variant)",
+              padding: "2px 8px",
+              borderRadius: 8,
+            }}
+          >
+            {sLabel}
+          </span>
+        )}
         {friend.locating_in_progress && (
           <span
             style={{

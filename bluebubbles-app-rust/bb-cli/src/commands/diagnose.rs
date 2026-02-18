@@ -12,6 +12,7 @@ use bb_api::endpoints::chats::ChatQuery;
 use bb_core::config::ConfigHandle;
 use bb_core::error::BbResult;
 use bb_models::Contact;
+use bb_models::Message;
 use bb_models::models::contact::normalize_address;
 use crate::OutputFormat;
 
@@ -33,6 +34,16 @@ pub enum DiagnoseAction {
     /// matching logic from batch_load_participants_with_contacts to find
     /// handles that resolve (or fail to resolve) to a contact name.
     Contacts,
+    /// Test the full attachment pipeline: server fetch -> parse -> DB save -> DB load -> download.
+    /// Picks a chat with recent image attachments and validates every step.
+    Attachments {
+        /// Optional: specific chat GUID to test. If not given, auto-picks a chat with images.
+        #[arg(long)]
+        chat: Option<String>,
+        /// Number of messages to test (default 25).
+        #[arg(short = 'n', long, default_value = "25")]
+        limit: i64,
+    },
 }
 
 pub async fn run(
@@ -45,6 +56,7 @@ pub async fn run(
         DiagnoseAction::Chats => run_chats(config).await,
         DiagnoseAction::Chat { guid } => run_chat(config, &guid).await,
         DiagnoseAction::Contacts => run_contacts(config).await,
+        DiagnoseAction::Attachments { chat, limit } => run_attachments(config, chat, limit).await,
     }
 }
 

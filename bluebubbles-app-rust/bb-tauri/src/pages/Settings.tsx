@@ -8,13 +8,20 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useSettingsStore } from "@/store/settingsStore";
 import { useConnectionStore } from "@/store/connectionStore";
 import { useTheme, type ThemeMode } from "@/hooks/useTheme";
+import { Toast } from "@/components/Toast";
 import {
   tauriConnect,
   tauriSyncFull,
   tauriSyncMessages,
   tauriCheckPrivateApiStatus,
   tauriDetectLocalhost,
+  tauriGetServerInfo,
+  tauriStartMcpServer,
+  tauriStopMcpServer,
+  tauriGetMcpStatus,
+  tauriRegenerateMcpToken,
   type PrivateApiStatus,
+  type McpStatusInfo,
 } from "@/hooks/useTauri";
 
 type SettingsPanel =
@@ -25,13 +32,14 @@ type SettingsPanel =
   | "private-api"
   | "desktop"
   | "server"
+  | "mcp-server"
   | "diagnostics"
   | "troubleshoot"
   | "about";
 
 const validPanels: SettingsPanel[] = [
   "general", "appearance", "chat", "notifications",
-  "private-api", "desktop", "server", "diagnostics", "troubleshoot", "about",
+  "private-api", "desktop", "server", "mcp-server", "diagnostics", "troubleshoot", "about",
 ];
 
 export function Settings() {
@@ -40,6 +48,17 @@ export function Settings() {
   const panelParam = searchParams.get("panel");
   const initialPanel = validPanels.includes(panelParam as SettingsPanel) ? (panelParam as SettingsPanel) : "general";
   const [activePanel, setActivePanel] = useState<SettingsPanel>(initialPanel);
+  const { status, setServerInfo } = useConnectionStore();
+
+  // Refresh serverInfo from server when Settings page opens
+  // so cached data (helper_connected, private_api, etc.) is up to date
+  useEffect(() => {
+    if (status === "connected") {
+      tauriGetServerInfo()
+        .then((info) => setServerInfo(info))
+        .catch(() => {});
+    }
+  }, [status, setServerInfo]);
 
   useEffect(() => {
     if (panelParam && validPanels.includes(panelParam as SettingsPanel)) {
@@ -163,6 +182,12 @@ export function Settings() {
             onClick={() => setActivePanel("server")}
           />
           <SettingsNavItem
+            label="MCP Server"
+            icon={"\uD83E\uDD16"}
+            active={activePanel === "mcp-server"}
+            onClick={() => setActivePanel("mcp-server")}
+          />
+          <SettingsNavItem
             label="Diagnostics"
             icon={"\uD83D\uDCCA"}
             active={activePanel === "diagnostics"}
@@ -199,6 +224,7 @@ export function Settings() {
               {activePanel === "private-api" && <PrivateAPIPanel />}
               {activePanel === "desktop" && <DesktopPanel />}
               {activePanel === "server" && <ServerPanel />}
+              {activePanel === "mcp-server" && <McpServerPanel />}
               {activePanel === "diagnostics" && <DiagnosticsPanel />}
               {activePanel === "troubleshoot" && <TroubleshootPanel />}
               {activePanel === "about" && <AboutPanel />}
@@ -744,6 +770,37 @@ function NotificationsPanel() {
   const notifOnChatList = settings["notifOnChatList"] === "true";
   const otpDetection = settings["otpDetection"] !== "false";
   const otpAutoCopy = settings["otpAutoCopy"] !== "false";
+  const [testToast, setTestToast] = useState<string | null>(null);
+
+  const handleTestNotification = useCallback(async () => {
+    const title = "BlueBubbles";
+    const body = showPreviews
+      ? "Test message: This is how notifications will look."
+      : "Test message received.";
+
+    try {
+      if ("Notification" in window) {
+        if (Notification.permission === "default") {
+          const permission = await Notification.requestPermission();
+          if (permission !== "granted") {
+            setTestToast("Notifications are blocked. Enable them in system settings.");
+            return;
+          }
+        }
+
+        if (Notification.permission === "granted") {
+          // Web Notification API (Tauri will route to native notifications)
+          new Notification(title, { body, silent: !soundEnabled });
+          setTestToast("Test notification sent.");
+          return;
+        }
+      }
+
+      setTestToast("Notifications are unavailable on this platform.");
+    } catch {
+      setTestToast("Failed to send test notification.");
+    }
+  }, [showPreviews, soundEnabled]);
 
   return (
     <>
@@ -778,6 +835,13 @@ function NotificationsPanel() {
           value={notifOnChatList}
           onChange={(v) => updateSetting("notifOnChatList", String(v))}
         />
+        <SettingsButton
+          label="Send Test Notification"
+          subtitle="Simulate a new message notification"
+          buttonLabel="Send Test"
+          onClick={handleTestNotification}
+          variant="outline"
+        />
       </SettingsSection>
 
       <SettingsSection title="One-Time Passwords">
@@ -795,6 +859,12 @@ function NotificationsPanel() {
           disabled={!otpDetection}
         />
       </SettingsSection>
+
+      <Toast
+        message={testToast ?? ""}
+        visible={Boolean(testToast)}
+        onDismiss={() => setTestToast(null)}
+      />
     </>
   );
 }
@@ -1357,6 +1427,292 @@ function ServerPanel() {
           />
         </SettingsSection>
       )}
+    </>
+  );
+}
+
+function McpServerPanel() {
+  const { settings, updateSetting } = useSettingsStore();
+  const [status, setStatus] = useState<McpStatusInfo | null>(null);
+  const [tokenVisible, setTokenVisible] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const mcpPort = parseInt(settings["mcp_server_port"] || "11111", 10) || 11111;
+
+  const fetchStatus = useCallback(async () => {
+    try {
+      const result = await tauriGetMcpStatus();
+      setStatus(result);
+    } catch {
+      // server may not be running
+    }
+  }, []);
+
+  // Poll status every 3 seconds
+  useEffect(() => {
+    fetchStatus();
+    const interval = setInterval(fetchStatus, 3000);
+    return () => clearInterval(interval);
+  }, [fetchStatus]);
+
+  const handleToggle = useCallback(async (enabled: boolean) => {
+    setLoading(true);
+    try {
+      if (enabled) {
+        const savedToken = settings["mcp_server_token"] || undefined;
+        const result = await tauriStartMcpServer(mcpPort, savedToken);
+        setStatus(result);
+        setToast("MCP server started");
+      } else {
+        await tauriStopMcpServer();
+        setStatus(null);
+        setToast("MCP server stopped");
+      }
+    } catch (err: unknown) {
+      setToast(`Error: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setLoading(false);
+    }
+  }, [mcpPort, settings]);
+
+  const handlePortChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value.replace(/\D/g, "");
+    updateSetting("mcp_server_port", val || "11111");
+  }, [updateSetting]);
+
+  const handleRegenerateToken = useCallback(async () => {
+    try {
+      const newToken = await tauriRegenerateMcpToken();
+      setToast("Token regenerated. Update your Claude Desktop config.");
+      await fetchStatus();
+    } catch (err: unknown) {
+      setToast(`Error: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }, [fetchStatus]);
+
+  const handleCopy = useCallback((text: string, label: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setToast(`${label} copied to clipboard`);
+    }).catch(() => {
+      setToast("Failed to copy");
+    });
+  }, []);
+
+  const isRunning = status?.running === true;
+  const token = status?.token || "";
+  const connectedClients = status?.connected_clients ?? 0;
+  const serverUrl = status?.url || `http://127.0.0.1:${mcpPort}/mcp/sse`;
+
+  const claudeConfig = JSON.stringify({
+    mcpServers: {
+      bluebubbles: {
+        url: serverUrl,
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    },
+  }, null, 2);
+
+  const inputStyle: CSSProperties = {
+    padding: "8px 12px",
+    borderRadius: 8,
+    border: "1px solid var(--color-outline)",
+    backgroundColor: "var(--color-surface-variant)",
+    color: "var(--color-on-surface)",
+    fontSize: "var(--font-body-medium)",
+    outline: "none",
+    fontFamily: "monospace",
+  };
+
+  const copyBtnStyle: CSSProperties = {
+    padding: "4px 10px",
+    borderRadius: 6,
+    fontSize: "var(--font-body-small)",
+    fontWeight: 600,
+    cursor: "pointer",
+    backgroundColor: "transparent",
+    color: "var(--color-primary)",
+    border: "1px solid var(--color-outline)",
+  };
+
+  return (
+    <>
+      <SettingsSection title="MCP Server">
+        <SettingsSwitch
+          label="Enable MCP Server"
+          subtitle="Allow AI tools (Claude Desktop, Cursor, etc.) to connect and interact with your iMessages"
+          value={isRunning}
+          onChange={handleToggle}
+          disabled={loading}
+        />
+        <SettingsTile
+          label="Port"
+          subtitle="Localhost port for the MCP server"
+          trailing={
+            <input
+              type="text"
+              value={String(mcpPort)}
+              onChange={handlePortChange}
+              disabled={isRunning}
+              style={{ ...inputStyle, width: 80, textAlign: "center" }}
+            />
+          }
+        />
+        <SettingsTile
+          label="Status"
+          trailing={
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div
+                style={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: "50%",
+                  backgroundColor: isRunning ? "#34C759" : "#FF3B30",
+                  flexShrink: 0,
+                }}
+              />
+              <span
+                style={{
+                  color: isRunning ? "var(--color-primary)" : "var(--color-on-surface-variant)",
+                  fontWeight: 600,
+                }}
+              >
+                {isRunning ? "Running" : "Stopped"}
+              </span>
+            </div>
+          }
+        />
+        {isRunning && (
+          <SettingsTile
+            label="Connected Clients"
+            trailing={
+              <span style={{ color: "var(--color-on-surface-variant)", fontWeight: 600 }}>
+                {connectedClients}
+              </span>
+            }
+          />
+        )}
+      </SettingsSection>
+
+      {isRunning && (
+        <>
+          <SettingsSection title="Authentication">
+            <SettingsTile
+              label="Bearer Token"
+              subtitle="Used by AI tools to authenticate with the MCP server"
+              trailing={
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <input
+                    type={tokenVisible ? "text" : "password"}
+                    value={token}
+                    readOnly
+                    style={{ ...inputStyle, width: 200 }}
+                  />
+                  <button
+                    onClick={() => setTokenVisible(!tokenVisible)}
+                    style={copyBtnStyle}
+                    title={tokenVisible ? "Hide" : "Show"}
+                  >
+                    {tokenVisible ? "Hide" : "Show"}
+                  </button>
+                  <button
+                    onClick={() => handleCopy(token, "Token")}
+                    style={copyBtnStyle}
+                    title="Copy token"
+                  >
+                    Copy
+                  </button>
+                  <button
+                    onClick={handleRegenerateToken}
+                    style={{ ...copyBtnStyle, color: "var(--color-error)" }}
+                    title="Regenerate token (disconnects active sessions)"
+                  >
+                    Regenerate
+                  </button>
+                </div>
+              }
+            />
+            <SettingsTile
+              label="Connection URL"
+              subtitle="URL for AI tools to connect to"
+              trailing={
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span
+                    style={{
+                      fontFamily: "monospace",
+                      fontSize: "var(--font-body-small)",
+                      color: "var(--color-on-surface-variant)",
+                    }}
+                  >
+                    {serverUrl}
+                  </span>
+                  <button
+                    onClick={() => handleCopy(serverUrl, "URL")}
+                    style={copyBtnStyle}
+                  >
+                    Copy
+                  </button>
+                </div>
+              }
+            />
+          </SettingsSection>
+
+          <SettingsSection title="Claude Desktop Config">
+            <div
+              style={{
+                fontSize: "var(--font-body-small)",
+                color: "var(--color-on-surface-variant)",
+                marginBottom: 8,
+              }}
+            >
+              Add this to your Claude Desktop config file:
+              <br />
+              <span style={{ fontFamily: "monospace", fontSize: 11 }}>
+                {navigator.platform?.includes("Mac")
+                  ? "~/Library/Application Support/Claude/claude_desktop_config.json"
+                  : "%APPDATA%\\Claude\\claude_desktop_config.json"}
+              </span>
+            </div>
+            <div style={{ position: "relative" }}>
+              <pre
+                style={{
+                  padding: 16,
+                  borderRadius: 8,
+                  backgroundColor: "var(--color-surface-variant)",
+                  color: "var(--color-on-surface)",
+                  fontSize: 12,
+                  fontFamily: "monospace",
+                  overflow: "auto",
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-all",
+                  maxHeight: 300,
+                }}
+              >
+                {claudeConfig}
+              </pre>
+              <button
+                onClick={() => handleCopy(claudeConfig, "Config")}
+                style={{
+                  ...copyBtnStyle,
+                  position: "absolute",
+                  top: 8,
+                  right: 8,
+                }}
+              >
+                Copy
+              </button>
+            </div>
+          </SettingsSection>
+        </>
+      )}
+
+      <Toast
+        message={toast ?? ""}
+        visible={Boolean(toast)}
+        onDismiss={() => setToast(null)}
+      />
     </>
   );
 }

@@ -3,7 +3,7 @@
  */
 import { create } from "zustand";
 import type { Message } from "@/hooks/useTauri";
-import { tauriGetMessages, tauriSendMessage } from "@/hooks/useTauri";
+import { tauriGetMessages, tauriSendMessage, tauriSendAttachmentData, tauriSendAttachmentMessage } from "@/hooks/useTauri";
 import { useChatStore } from "./chatStore";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
@@ -19,7 +19,11 @@ interface MessageState {
   loadMessages: (chatGuid: string) => Promise<void>;
   loadOlder: () => Promise<void>;
   sendMessage: (text: string, effect?: string) => Promise<void>;
+  sendAttachment: (file: File) => Promise<void>;
+  sendAttachmentFromPath: (filePath: string) => Promise<void>;
   addMessage: (message: Message) => void;
+  addOptimisticReaction: (messageGuid: string, reaction: string) => void;
+  removeOptimisticReaction: (messageGuid: string, tempGuid: string) => void;
   clear: () => void;
 
   // Event listener cleanup
@@ -186,6 +190,106 @@ export const useMessageStore = create<MessageState>((set, get) => ({
     }
   },
 
+  sendAttachment: async (file: File) => {
+    const { chatGuid } = get();
+    if (!chatGuid) return;
+
+    // Create optimistic message
+    const optimisticGuid = `optimistic-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const optimisticMsg: Message = {
+      id: null,
+      guid: optimisticGuid,
+      chat_id: null,
+      handle_id: null,
+      text: null,
+      subject: null,
+      error: 0,
+      date_created: new Date().toISOString(),
+      date_read: null,
+      date_delivered: null,
+      is_from_me: true,
+      is_delivered: false,
+      item_type: 0,
+      group_title: null,
+      associated_message_guid: null,
+      associated_message_type: null,
+      expressive_send_style_id: null,
+      has_attachments: true,
+      has_reactions: false,
+      thread_originator_guid: null,
+      big_emoji: null,
+      date_edited: null,
+      attachments: [],
+      associated_messages: [],
+    };
+
+    set((state) => ({
+      sending: true,
+      error: null,
+      messages: [optimisticMsg, ...state.messages],
+    }));
+
+    useChatStore.getState().updateChatPreview(chatGuid, {
+      text: `Sent ${file.name}`,
+      date_created: optimisticMsg.date_created,
+      is_from_me: true,
+    });
+
+    try {
+      // Convert File to base64
+      const arrayBuffer = await file.arrayBuffer();
+      const uint8Array = new Uint8Array(arrayBuffer);
+      let binary = "";
+      for (let i = 0; i < uint8Array.length; i++) {
+        binary += String.fromCharCode(uint8Array[i]);
+      }
+      const base64Data = btoa(binary);
+
+      const msg = await tauriSendAttachmentData(chatGuid, file.name, base64Data);
+
+      set((state) => ({
+        messages: state.messages.map((m) =>
+          m.guid === optimisticGuid ? msg : m
+        ),
+        sending: false,
+      }));
+
+      useChatStore.getState().updateChatPreview(chatGuid, {
+        text: msg.text ?? `Sent ${file.name}`,
+        date_created: msg.date_created,
+        is_from_me: true,
+      });
+    } catch (err) {
+      set((state) => ({
+        messages: state.messages.map((m) =>
+          m.guid === optimisticGuid ? { ...m, error: 1 } : m
+        ),
+        error: err instanceof Error ? err.message : String(err),
+        sending: false,
+      }));
+    }
+  },
+
+  sendAttachmentFromPath: async (filePath: string) => {
+    const { chatGuid } = get();
+    if (!chatGuid) return;
+
+    set({ sending: true, error: null });
+
+    try {
+      const msg = await tauriSendAttachmentMessage(chatGuid, filePath);
+      set((state) => ({
+        messages: [msg, ...state.messages],
+        sending: false,
+      }));
+    } catch (err) {
+      set({
+        error: err instanceof Error ? err.message : String(err),
+        sending: false,
+      });
+    }
+  },
+
   addMessage: (message: Message) => {
     const { messages, chatGuid } = get();
 
@@ -204,6 +308,60 @@ export const useMessageStore = create<MessageState>((set, get) => ({
       date_created: message.date_created,
       is_from_me: message.is_from_me,
     });
+  },
+
+  addOptimisticReaction: (messageGuid: string, reaction: string) => {
+    const tempGuid = `temp-reaction-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const syntheticReaction: Message = {
+      id: null,
+      guid: tempGuid,
+      chat_id: null,
+      handle_id: null,
+      text: null,
+      subject: null,
+      error: 0,
+      date_created: new Date().toISOString(),
+      date_read: null,
+      date_delivered: null,
+      is_from_me: true,
+      is_delivered: false,
+      item_type: 0,
+      group_title: null,
+      associated_message_guid: messageGuid,
+      associated_message_type: reaction,
+      expressive_send_style_id: null,
+      has_attachments: false,
+      has_reactions: false,
+      thread_originator_guid: null,
+      big_emoji: null,
+      date_edited: null,
+      attachments: [],
+      associated_messages: [],
+    };
+
+    set((state) => ({
+      messages: state.messages.map((m) => {
+        if (m.guid !== messageGuid) return m;
+        return {
+          ...m,
+          associated_messages: [...(m.associated_messages ?? []), syntheticReaction],
+        };
+      }),
+    }));
+  },
+
+  removeOptimisticReaction: (messageGuid: string, tempGuid: string) => {
+    set((state) => ({
+      messages: state.messages.map((m) => {
+        if (m.guid !== messageGuid) return m;
+        return {
+          ...m,
+          associated_messages: (m.associated_messages ?? []).filter(
+            (r) => r.guid !== tempGuid
+          ),
+        };
+      }),
+    }));
   },
 
   clear: () => {

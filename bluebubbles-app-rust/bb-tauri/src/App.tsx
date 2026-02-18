@@ -24,6 +24,9 @@ import { OtpToastProvider } from "@/contexts/OtpToastContext";
 import { OtpToast } from "@/components/OtpToast";
 import { useOtpDetection } from "@/hooks/useOtpDetection";
 import { useOtpToast } from "@/contexts/OtpToastContext";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { Image } from "@tauri-apps/api/image";
+import { resolveResource } from "@tauri-apps/api/path";
 
 function AppContent() {
   // Initialize theme system
@@ -31,6 +34,21 @@ function AppContent() {
 
   // Initialize OTP detection
   useOtpDetection();
+
+  // Ensure window icon is set (avoids stale/default icon in dev)
+  useEffect(() => {
+    if (!(window as unknown as { __TAURI__?: unknown }).__TAURI__) return;
+    const setWindowIcon = async () => {
+      try {
+        const iconPath = await resolveResource("icons/icon.png");
+        const iconImage = await Image.fromPath(iconPath);
+        await getCurrentWindow().setIcon(iconImage);
+      } catch {
+        // ignore icon errors (fallback to default)
+      }
+    };
+    setWindowIcon();
+  }, []);
 
   const { loadSettings, loaded: settingsLoaded } = useSettingsStore();
   const { status, setStatus, setServerInfo } = useConnectionStore();
