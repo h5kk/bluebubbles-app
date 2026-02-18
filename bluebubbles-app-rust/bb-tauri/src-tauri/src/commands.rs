@@ -676,14 +676,15 @@ pub async fn get_messages(
                     // not a group event, not a reaction. These are almost
                     // certainly image/attachment-only messages whose attachment
                     // data was never saved to local DB.
+                    let text_empty = msg.text.as_ref().map_or(true, |t| t.trim().is_empty());
                     if !needs_server_backfill
-                        && msg.text.is_none()
+                        && text_empty
                         && msg.attachments.is_empty()
                         && msg.item_type == 0
                         && msg.associated_message_type.is_none()
                     {
-                        debug!("detected empty-body msg {} - likely missing attachment data",
-                            msg.guid.as_deref().unwrap_or("?"));
+                        debug!("detected empty-body msg {} (text={:?}) - likely missing attachment data",
+                            msg.guid.as_deref().unwrap_or("?"), msg.text);
                         needs_server_backfill = true;
                     }
                 }
@@ -709,7 +710,7 @@ pub async fn get_messages(
     let api = state.api_client().await.map_err(|e| e.to_string())?;
     let encoded_guid = percent_encode_path(&chat_guid);
     let path = format!(
-        "/chat/{}/message?offset={}&limit={}&sort=DESC&with%5B%5D=attachment&with%5B%5D=handle",
+        "/chat/{}/message?offset={}&limit={}&sort=DESC&with=message.attributedBody,message.messageSummaryInfo,message.payloadData,attachment,handle",
         encoded_guid, offset.unwrap_or(0), limit
     );
 
@@ -1579,7 +1580,7 @@ pub async fn sync_messages(
         // Fetch messages from server API
         let encoded_guid = percent_encode_path(guid);
         let path = format!(
-            "/chat/{}/message?offset=0&limit={}&sort=DESC&with%5B%5D=attachment&with%5B%5D=handle",
+            "/chat/{}/message?offset=0&limit={}&sort=DESC&with=message.attributedBody,message.messageSummaryInfo,message.payloadData,attachment,handle",
             encoded_guid, messages_per_chat
         );
 

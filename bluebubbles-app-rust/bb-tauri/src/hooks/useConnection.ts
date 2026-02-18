@@ -40,6 +40,7 @@ export function useConnection() {
     try {
       const info = await tauriGetServerInfo();
       setServerInfo(info);
+      setError(null);
       return info;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

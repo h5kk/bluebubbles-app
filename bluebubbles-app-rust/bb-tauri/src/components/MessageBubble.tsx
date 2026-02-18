@@ -244,7 +244,6 @@ const AttachmentImage = memo(function AttachmentImage({
       <div
         style={{
           width: "100%",
-          maxWidth: "var(--bubble-max-width)",
           aspectRatio: String(aspectRatio),
           maxHeight: 320,
           backgroundColor: "var(--color-surface-variant, #e0e0e0)",
@@ -283,10 +282,9 @@ const AttachmentImage = memo(function AttachmentImage({
       style={{
         display: "block",
         width: "100%",
-        maxWidth: "var(--bubble-max-width)",
-        maxHeight: 400,
+        maxHeight: 320,
         borderRadius: borderRadius ?? "12px",
-        objectFit: "cover",
+        objectFit: "contain",
         cursor: onClick ? "pointer" : "default",
       }}
       loading="lazy"
